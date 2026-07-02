@@ -36,6 +36,7 @@ pub fn run() {
             .plugin(tauri_plugin_notification::init())
             .manage(state)
             .setup(|app| {
+                #[cfg(not(mobile))]
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.set_fullscreen(false);
                     let _ = window.unmaximize();

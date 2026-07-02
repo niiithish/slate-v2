@@ -3792,6 +3792,7 @@ dependencies = [
  "argon2",
  "chrono",
  "dotenvy",
+ "hyper-rustls",
  "libsql",
  "rand 0.8.6",
  "serde",

@@ -53,7 +53,16 @@ impl DatabaseState {
         let token = env_var("DATABASE_TOKEN")
             .ok_or_else(|| DbError::Env("DATABASE_TOKEN missing".into()))?;
 
-        let db = Builder::new_remote(url, token).build().await?;
+        // Android has no native OS CA store; bundled webpki roots work on all platforms.
+        let https = hyper_rustls::HttpsConnectorBuilder::new()
+            .with_webpki_roots()
+            .https_or_http()
+            .enable_http1()
+            .build();
+        let db = Builder::new_remote(url, token)
+            .connector(https)
+            .build()
+            .await?;
         let state = Self { db };
         state.migrate().await?;
         Ok(state)

@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">Slate</string>
-    <string name="main_activity_title">Slate</string>
+    <string name="app_name">"Slate"</string>
+    <string name="main_activity_title">"Slate"</string>
 </resources>

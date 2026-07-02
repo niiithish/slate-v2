@@ -9,7 +9,9 @@ use tokio::task::JoinHandle;
 use crate::db::{DatabaseState, DbResult};
 use crate::logic::next_reminder_fire;
 
-use crate::reminders::{send_notification, ReminderPayload};
+#[cfg(not(mobile))]
+use crate::reminders::send_notification;
+use crate::reminders::ReminderPayload;
 
 type SchedulerMap = Arc<Mutex<HashMap<String, JoinHandle<()>>>>;
 
@@ -122,7 +124,7 @@ fn schedule_mobile_notification<R: Runtime>(
     body: &str,
     fire_at: NaiveDateTime,
 ) -> Result<(), tauri_plugin_notification::Error> {
-    use tauri_plugin_notification::Schedule;
+    use tauri_plugin_notification::{NotificationExt, Schedule};
     use time::OffsetDateTime;
 
     let local = fire_at.and_local_timezone(Local).single().ok_or_else(|| {
@@ -131,7 +133,12 @@ fn schedule_mobile_notification<R: Runtime>(
             "invalid schedule time",
         ))
     })?;
-    let date = OffsetDateTime::from_unix_timestamp(local.timestamp())?;
+    let date = OffsetDateTime::from_unix_timestamp(local.timestamp()).map_err(|_| {
+        tauri_plugin_notification::Error::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "invalid schedule timestamp",
+        ))
+    })?;
 
     app.notification()
         .builder()

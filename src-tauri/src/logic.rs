@@ -1,4 +1,4 @@
-use chrono::{Datelike, NaiveDate, NaiveDateTime, Weekday};
+use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Weekday};
 use crate::models::{DayLog, HabitEntry, HabitStatus, RoutineSchedule};
 
 pub fn progress_percentage(entries: &[HabitEntry]) -> f64 {
@@ -217,6 +217,56 @@ pub fn validate_daily_log_fields(
     Ok(())
 }
 
+pub const EVENING_LOG_REMINDER_HOUR: u32 = 22;
+pub const WATER_REMINDER_INTERVAL_HOURS: u32 = 6;
+pub const WATER_REMINDER_HOURS: [u32; 4] = [0, 6, 12, 18];
+
+pub fn next_evening_log_reminder(now: NaiveDateTime) -> NaiveDateTime {
+    let fire_time =
+        NaiveTime::from_hms_opt(EVENING_LOG_REMINDER_HOUR, 0, 0).expect("valid evening time");
+    let today = NaiveDateTime::new(now.date(), fire_time);
+    if now < today {
+        today
+    } else {
+        NaiveDateTime::new(
+            now.date() + chrono::Duration::days(1),
+            fire_time,
+        )
+    }
+}
+
+pub fn upcoming_evening_log_reminders(now: NaiveDateTime, days: i64) -> Vec<NaiveDateTime> {
+    let mut fires = Vec::new();
+    let fire_time =
+        NaiveTime::from_hms_opt(EVENING_LOG_REMINDER_HOUR, 0, 0).expect("valid evening time");
+    for offset in 0..days {
+        let date = now.date() + chrono::Duration::days(offset);
+        let fire_at = NaiveDateTime::new(date, fire_time);
+        if fire_at > now {
+            fires.push(fire_at);
+        }
+    }
+    fires
+}
+
+pub fn upcoming_water_reminders(now: NaiveDateTime, days: i64) -> Vec<NaiveDateTime> {
+    let mut fires = Vec::new();
+    for offset in 0..days {
+        let date = now.date() + chrono::Duration::days(offset);
+        for hour in WATER_REMINDER_HOURS {
+            let Some(time) = NaiveTime::from_hms_opt(hour, 0, 0) else {
+                continue;
+            };
+            let fire_at = NaiveDateTime::new(date, time);
+            if fire_at > now {
+                fires.push(fire_at);
+            }
+        }
+    }
+    fires.sort();
+    fires
+}
+
 pub fn heatmap_completion_rate(avoided: u32, _slipped: u32, total: u32) -> f64 {
     if total == 0 {
         return 0.0;
@@ -226,7 +276,7 @@ pub fn heatmap_completion_rate(avoided: u32, _slipped: u32, total: u32) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use chrono::NaiveTime;
+    use chrono::{NaiveDateTime, NaiveTime};
 
     use super::*;
     use crate::models::HabitEntry;
@@ -341,6 +391,37 @@ mod tests {
             &Some(2500),
         )
         .is_ok());
+    }
+
+    #[test]
+    fn evening_log_reminder_fires_at_ten_pm() {
+        let afternoon = NaiveDate::from_ymd_opt(2026, 7, 2)
+            .unwrap()
+            .and_hms_opt(15, 0, 0)
+            .unwrap();
+        let next = next_evening_log_reminder(afternoon);
+        assert_eq!(next.to_string(), "2026-07-02 22:00:00");
+
+        let late = NaiveDate::from_ymd_opt(2026, 7, 2)
+            .unwrap()
+            .and_hms_opt(22, 30, 0)
+            .unwrap();
+        let next = next_evening_log_reminder(late);
+        assert_eq!(next.to_string(), "2026-07-03 22:00:00");
+    }
+
+    #[test]
+    fn water_reminders_every_six_hours() {
+        let morning = NaiveDateTime::parse_from_str("2026-07-02 07:30:00", "%Y-%m-%d %H:%M:%S")
+            .unwrap();
+        let fires = upcoming_water_reminders(morning, 1);
+        assert_eq!(
+            fires.iter().map(|fire| fire.to_string()).collect::<Vec<_>>(),
+            vec![
+                "2026-07-02 12:00:00".to_string(),
+                "2026-07-02 18:00:00".to_string(),
+            ]
+        );
     }
 
     #[test]

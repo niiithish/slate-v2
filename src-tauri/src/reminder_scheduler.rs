@@ -6,6 +6,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
+use crate::daily_log_reminders::{daily_log_reminder_body, upcoming_daily_log_reminders};
 use crate::db::{DatabaseState, DbResult};
 use crate::logic::next_reminder_fire;
 
@@ -102,6 +103,54 @@ pub async fn sync_scheduled_reminders<R: Runtime>(
             );
         }
     }
+
+    for payload in upcoming_daily_log_reminders(now) {
+        let fire_at = chrono::NaiveDateTime::parse_from_str(&payload.fire_at, "%Y-%m-%d %H:%M:%S")
+            .map_err(|_| crate::db::DbError::InvalidInput("invalid daily log reminder time".into()))?;
+        payloads.push(payload.clone());
+
+        let Some((title, body)) = daily_log_reminder_body(&payload.routine_id) else {
+            continue;
+        };
+
+        #[cfg(not(mobile))]
+        {
+            let app_handle = app.clone();
+            let db = db.clone();
+            let user_id = user_id.to_string();
+            let reminder_id = payload.routine_id.clone();
+            let key = format!("{user_id}:{reminder_id}:{}", fire_at.format("%Y-%m-%d %H:%M"));
+
+            let handle = tokio::spawn(async move {
+                wait_until(fire_at).await;
+                let date = fire_at.date().to_string();
+                let already_fired = match db
+                    .reminder_already_fired(&user_id, &reminder_id, &date)
+                    .await
+                {
+                    Ok(value) => value,
+                    Err(error) => {
+                        tracing::error!("daily log reminder dedup check failed: {error}");
+                        return;
+                    }
+                };
+                if already_fired {
+                    return;
+                }
+                let _ = send_notification(&app_handle, title, body);
+                let _ = db
+                    .record_reminder_fire(&user_id, &reminder_id, &date)
+                    .await;
+            });
+            handles.insert(key, handle);
+        }
+
+        #[cfg(mobile)]
+        {
+            let _ = schedule_mobile_notification(app, title, body, fire_at);
+        }
+    }
+
     Ok(payloads)
 }
 

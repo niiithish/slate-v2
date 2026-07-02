@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod commands;
+pub mod daily_log_reminders;
 pub mod db;
 pub mod logic;
 pub mod models;
@@ -40,9 +41,8 @@ pub fn run() {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.set_fullscreen(false);
                     let _ = window.unmaximize();
+                    let _ = window.set_resizable(false);
                     let _ = window.set_size(LogicalSize::new(360.0, 620.0));
-                    let _ = window.set_min_size(Some(LogicalSize::new(320.0, 520.0)));
-                    let _ = window.set_max_size(Some(LogicalSize::new(420.0, 680.0)));
                     let _ = window.center();
                 }
                 Ok(())

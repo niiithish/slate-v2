@@ -30,6 +30,10 @@ function App() {
   useEffect(() => {
     if (!token) return;
     api.syncReminderSchedules(token).catch(() => undefined);
+    const timer = window.setInterval(() => {
+      api.syncReminderSchedules(token).catch(() => undefined);
+    }, 60 * 60 * 1000);
+    return () => window.clearInterval(timer);
   }, [token]);
 
   if (!token || !user) {

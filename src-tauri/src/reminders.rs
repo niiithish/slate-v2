@@ -2,6 +2,7 @@ use chrono::Local;
 use serde::Serialize;
 use tauri_plugin_notification::NotificationExt;
 
+use crate::daily_log_reminders::upcoming_daily_log_reminders;
 use crate::db::{DbError, DbResult, DatabaseState};
 use crate::logic::next_reminder_fire;
 use crate::models::RoutineSchedule;
@@ -43,6 +44,8 @@ pub async fn upcoming_reminders(
             payloads.push(payload);
         }
     }
+
+    payloads.extend(upcoming_daily_log_reminders(now));
     Ok(payloads)
 }
 

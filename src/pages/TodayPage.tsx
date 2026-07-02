@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { BookOpen, CheckCircle, CurrencyDollar, Drop, LockSimple, WarningCircle } from "@phosphor-icons/react";
-import { DayCompanion } from "../components/DayCompanion";
+import {
+  BookOpen,
+  CaretRight,
+  CheckCircle,
+  CurrencyDollar,
+  Drop,
+  LockSimple,
+  WarningCircle,
+} from "@phosphor-icons/react";
 import { DayNavigator } from "../components/DayNavigator";
-import { useConfirm } from "../components/ConfirmDialog";
+import { FormSheet, sheetInputClass } from "../components/FormSheet";
 import { ProgressRing } from "../components/ProgressRing";
 import * as api from "../lib/api";
 import { isFuture, todayString } from "../lib/dates";
@@ -13,6 +20,8 @@ interface TodayPageProps {
   token: string;
 }
 
+type LogSheet = "trading" | "reading" | "water" | null;
+
 const EMPTY_DAILY_LOG: DailyLog = {
   trading_profit: null,
   book_title: null,
@@ -20,12 +29,31 @@ const EMPTY_DAILY_LOG: DailyLog = {
   water_ml: null,
 };
 
+function formatTrading(value: number | null): string {
+  if (value === null) return "Tap to log";
+  const prefix = value >= 0 ? "+" : "";
+  return `${prefix}$${value.toFixed(2)}`;
+}
+
+function formatReading(log: DailyLog): string {
+  if (log.book_title) return log.book_title;
+  if (log.book_description) return "Notes added";
+  return "Tap to log";
+}
+
+function formatWater(value: number | null): string {
+  if (value === null) return "Tap to log";
+  return `${value.toLocaleString()} ml`;
+}
+
 export function TodayPage({ token }: TodayPageProps) {
   const [selectedDate, setSelectedDate] = useState(todayString);
   const [state, setState] = useState<TodayState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const { confirm, dialog: confirmDialog } = useConfirm();
+  const [activeSheet, setActiveSheet] = useState<LogSheet>(null);
+  const [draft, setDraft] = useState<DailyLog>(EMPTY_DAILY_LOG);
+  const [savingLog, setSavingLog] = useState(false);
 
   const loadDay = useCallback(
     async (date: string, showSkeleton = false) => {
@@ -70,38 +98,30 @@ export function TodayPage({ token }: TodayPageProps) {
     }
   }
 
-  async function saveDailyLog(nextLog: DailyLog) {
-    if (!state || state.locked || isFuture(selectedDate)) return;
+  function openSheet(sheet: LogSheet) {
+    if (!state || isFuture(selectedDate) || state.locked) return;
+    setDraft({ ...state.daily_log });
+    setActiveSheet(sheet);
+  }
+
+  function closeSheet() {
+    if (savingLog) return;
+    setActiveSheet(null);
+  }
+
+  async function saveSheet() {
+    if (!state || savingLog) return;
+    setSavingLog(true);
+    setError(null);
     try {
-      const next = await api.updateDailyLog(token, state.date, nextLog);
+      const next = await api.updateDailyLog(token, state.date, draft);
       setState({ ...next, daily_log: next.daily_log ?? EMPTY_DAILY_LOG });
+      setActiveSheet(null);
     } catch (err) {
       setError(String(err));
+    } finally {
+      setSavingLog(false);
     }
-  }
-
-  function patchDailyLog(patch: Partial<DailyLog>) {
-    if (!state) return;
-    const nextLog: DailyLog = { ...state.daily_log, ...patch };
-    setState({ ...state, daily_log: nextLog });
-    void saveDailyLog(nextLog);
-  }
-
-  function handleLockDay() {
-    if (!state || state.locked || isFuture(selectedDate)) return;
-    confirm({
-      title: "Lock in this day?",
-      message: "You won't be able to change habit statuses for this day after locking.",
-      confirmLabel: "Lock day",
-      onConfirm: async () => {
-        try {
-          const next = await api.lockDay(token, state.date);
-          setState({ ...next, daily_log: next.daily_log ?? EMPTY_DAILY_LOG });
-        } catch (err) {
-          setError(String(err));
-        }
-      },
-    });
   }
 
   const viewingFuture = isFuture(selectedDate);
@@ -111,7 +131,6 @@ export function TodayPage({ token }: TodayPageProps) {
     return (
       <div className="space-y-4 px-5 py-6">
         <div className="h-16 animate-pulse rounded-2xl bg-surface-2" />
-        <div className="h-28 animate-pulse rounded-2xl bg-surface-2" />
         <div className="h-40 animate-pulse rounded-2xl bg-surface-2" />
         <div className="h-24 animate-pulse rounded-2xl bg-surface-2" />
       </div>
@@ -124,9 +143,29 @@ export function TodayPage({ token }: TodayPageProps) {
     );
   }
 
-  const allComplete =
-    state.entries.length > 0 &&
-    state.entries.every((entry) => entry.status !== "pending");
+  const logRows = [
+    {
+      key: "trading" as const,
+      icon: CurrencyDollar,
+      label: "Trading",
+      summary: formatTrading(state.daily_log.trading_profit),
+      filled: state.daily_log.trading_profit !== null,
+    },
+    {
+      key: "reading" as const,
+      icon: BookOpen,
+      label: "Reading",
+      summary: formatReading(state.daily_log),
+      filled: Boolean(state.daily_log.book_title || state.daily_log.book_description),
+    },
+    {
+      key: "water" as const,
+      icon: Drop,
+      label: "Water",
+      summary: formatWater(state.daily_log.water_ml),
+      filled: state.daily_log.water_ml !== null,
+    },
+  ];
 
   return (
     <div className="space-y-6 px-5 py-6 pb-28">
@@ -137,8 +176,6 @@ export function TodayPage({ token }: TodayPageProps) {
           disabled={loading}
         />
       </header>
-
-      <DayCompanion state={state} date={selectedDate} />
 
       <AnimatePresence mode="wait">
         <motion.div
@@ -170,25 +207,27 @@ export function TodayPage({ token }: TodayPageProps) {
               <h3 className="text-sm font-medium text-text-secondary">
                 {viewingFuture ? "Scheduled routines" : "Active routines"}
               </h3>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {state.routines.map((routine) => (
-                  <div
-                    key={routine.id}
-                    className="min-w-[180px] rounded-2xl border border-border bg-surface-2 px-4 py-3"
-                  >
-                    <div className="flex items-center gap-2">
+              <ul className="divide-y divide-border rounded-xl border border-border bg-surface-2">
+                {[...state.routines]
+                  .sort((a, b) => a.start_time.localeCompare(b.start_time))
+                  .map((routine) => (
+                    <li
+                      key={routine.id}
+                      className="flex items-center gap-3 px-3 py-2.5"
+                    >
                       <span
-                        className="h-2.5 w-2.5 rounded-full"
+                        className="h-2 w-2 shrink-0 rounded-full"
                         style={{ background: routine.color }}
                       />
-                      <p className="font-medium">{routine.title}</p>
-                    </div>
-                    <p className="mt-1 text-xs text-text-muted">
-                      {routine.start_time} - {routine.end_time}
-                    </p>
-                  </div>
-                ))}
-              </div>
+                      <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                        {routine.title}
+                      </p>
+                      <p className="shrink-0 font-mono text-xs text-text-muted">
+                        {routine.start_time}–{routine.end_time}
+                      </p>
+                    </li>
+                  ))}
+              </ul>
             </section>
           ) : null}
 
@@ -264,83 +303,38 @@ export function TodayPage({ token }: TodayPageProps) {
 
           <section className="space-y-3">
             <h3 className="text-sm font-medium text-text-secondary">Daily log</h3>
-            <div className="space-y-3 rounded-2xl border border-border bg-surface-2 p-4">
-              <label className="block space-y-1.5">
-                <span className="inline-flex items-center gap-1.5 text-xs text-text-muted">
-                  <CurrencyDollar size={14} weight="fill" />
-                  Trading profit
-                </span>
-                <input
-                  type="number"
-                  step="0.01"
-                  disabled={readOnly}
-                  value={state.daily_log.trading_profit ?? ""}
-                  onChange={(event) => {
-                    const raw = event.target.value;
-                    patchDailyLog({
-                      trading_profit: raw === "" ? null : Number.parseFloat(raw),
-                    });
-                  }}
-                  placeholder="0.00"
-                  className="focus-ring w-full rounded-xl border border-border bg-surface-3 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted disabled:opacity-50"
-                />
-              </label>
-
-              <label className="block space-y-1.5">
-                <span className="inline-flex items-center gap-1.5 text-xs text-text-muted">
-                  <BookOpen size={14} weight="fill" />
-                  Book title
-                </span>
-                <input
-                  type="text"
-                  disabled={readOnly}
-                  value={state.daily_log.book_title ?? ""}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    patchDailyLog({ book_title: value === "" ? null : value });
-                  }}
-                  placeholder="What are you reading?"
-                  className="focus-ring w-full rounded-xl border border-border bg-surface-3 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted disabled:opacity-50"
-                />
-              </label>
-
-              <label className="block space-y-1.5">
-                <span className="text-xs text-text-muted">Reading notes</span>
-                <textarea
-                  rows={3}
-                  disabled={readOnly}
-                  value={state.daily_log.book_description ?? ""}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    patchDailyLog({ book_description: value === "" ? null : value });
-                  }}
-                  placeholder="What did you read about today?"
-                  className="focus-ring w-full resize-none rounded-xl border border-border bg-surface-3 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted disabled:opacity-50"
-                />
-              </label>
-
-              <label className="block space-y-1.5">
-                <span className="inline-flex items-center gap-1.5 text-xs text-text-muted">
-                  <Drop size={14} weight="fill" />
-                  Water (ml)
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  step={100}
-                  disabled={readOnly}
-                  value={state.daily_log.water_ml ?? ""}
-                  onChange={(event) => {
-                    const raw = event.target.value;
-                    patchDailyLog({
-                      water_ml: raw === "" ? null : Number.parseInt(raw, 10),
-                    });
-                  }}
-                  placeholder="2500"
-                  className="focus-ring w-full rounded-xl border border-border bg-surface-3 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted disabled:opacity-50"
-                />
-              </label>
-            </div>
+            <ul className="divide-y divide-border rounded-xl border border-border bg-surface-2">
+              {logRows.map((row) => {
+                const Icon = row.icon;
+                return (
+                  <li key={row.key}>
+                    <button
+                      type="button"
+                      disabled={readOnly}
+                      onClick={() => openSheet(row.key)}
+                      className="focus-ring flex w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-surface-3 active:scale-[0.99] disabled:cursor-default disabled:opacity-60"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-3 text-accent">
+                        <Icon size={16} weight="fill" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium">{row.label}</span>
+                        <span
+                          className={`mt-0.5 block truncate text-xs ${
+                            row.filled ? "text-text-secondary" : "text-text-muted"
+                          }`}
+                        >
+                          {row.summary}
+                        </span>
+                      </span>
+                      {!readOnly ? (
+                        <CaretRight size={14} className="shrink-0 text-text-muted" />
+                      ) : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </section>
 
           {error ? (
@@ -348,19 +342,105 @@ export function TodayPage({ token }: TodayPageProps) {
               {error}
             </p>
           ) : null}
-
-          <button
-            type="button"
-            disabled={!allComplete || readOnly}
-            onClick={() => handleLockDay()}
-            className="focus-ring flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-medium text-surface-0 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <LockSimple size={18} weight="fill" />
-            {state.locked ? "Day locked" : viewingFuture ? "Not yet" : "Lock in day"}
-          </button>
         </motion.div>
       </AnimatePresence>
-      {confirmDialog}
+
+      <FormSheet
+        open={activeSheet === "trading"}
+        title="Trading profit"
+        onClose={closeSheet}
+        onSave={saveSheet}
+        saving={savingLog}
+      >
+        <label className="block space-y-1.5">
+          <span className="text-xs text-text-muted">Amount for this day (use negative for loss)</span>
+          <input
+            type="number"
+            step="0.01"
+            autoFocus
+            value={draft.trading_profit ?? ""}
+            onChange={(event) => {
+              const raw = event.target.value;
+              setDraft((current) => ({
+                ...current,
+                trading_profit: raw === "" ? null : Number.parseFloat(raw),
+              }));
+            }}
+            placeholder="0.00"
+            className={sheetInputClass}
+          />
+        </label>
+      </FormSheet>
+
+      <FormSheet
+        open={activeSheet === "reading"}
+        title="Reading"
+        onClose={closeSheet}
+        onSave={saveSheet}
+        saving={savingLog}
+      >
+        <label className="block space-y-1.5">
+          <span className="text-xs text-text-muted">Book title</span>
+          <input
+            type="text"
+            autoFocus
+            value={draft.book_title ?? ""}
+            onChange={(event) => {
+              const value = event.target.value;
+              setDraft((current) => ({
+                ...current,
+                book_title: value === "" ? null : value,
+              }));
+            }}
+            placeholder="What are you reading?"
+            className={sheetInputClass}
+          />
+        </label>
+        <label className="block space-y-1.5">
+          <span className="text-xs text-text-muted">What did you read about?</span>
+          <textarea
+            rows={4}
+            value={draft.book_description ?? ""}
+            onChange={(event) => {
+              const value = event.target.value;
+              setDraft((current) => ({
+                ...current,
+                book_description: value === "" ? null : value,
+              }));
+            }}
+            placeholder="A few lines on today's reading..."
+            className={`${sheetInputClass} resize-none`}
+          />
+        </label>
+      </FormSheet>
+
+      <FormSheet
+        open={activeSheet === "water"}
+        title="Water intake"
+        onClose={closeSheet}
+        onSave={saveSheet}
+        saving={savingLog}
+      >
+        <label className="block space-y-1.5">
+          <span className="text-xs text-text-muted">Milliliters for this day</span>
+          <input
+            type="number"
+            min={0}
+            step={100}
+            autoFocus
+            value={draft.water_ml ?? ""}
+            onChange={(event) => {
+              const raw = event.target.value;
+              setDraft((current) => ({
+                ...current,
+                water_ml: raw === "" ? null : Number.parseInt(raw, 10),
+              }));
+            }}
+            placeholder="2500"
+            className={sheetInputClass}
+          />
+        </label>
+      </FormSheet>
     </div>
   );
 }

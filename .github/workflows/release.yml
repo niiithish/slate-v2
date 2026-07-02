@@ -37,11 +37,11 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Configure Turso credentials
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_TOKEN: ${{ secrets.DATABASE_TOKEN }}
         run: |
-          cat > .env.local <<'EOF'
-          DATABASE_URL=${{ secrets.DATABASE_URL }}
-          DATABASE_TOKEN=${{ secrets.DATABASE_TOKEN }}
-          EOF
+          printf 'DATABASE_URL=%s\nDATABASE_TOKEN=%s\n' "$DATABASE_URL" "$DATABASE_TOKEN" > .env.local
 
       - uses: tauri-apps/tauri-action@v1
         env:
@@ -92,11 +92,11 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Configure Turso credentials
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_TOKEN: ${{ secrets.DATABASE_TOKEN }}
         run: |
-          cat > .env.local <<'EOF'
-          DATABASE_URL=${{ secrets.DATABASE_URL }}
-          DATABASE_TOKEN=${{ secrets.DATABASE_TOKEN }}
-          EOF
+          printf 'DATABASE_URL=%s\nDATABASE_TOKEN=%s\n' "$DATABASE_URL" "$DATABASE_TOKEN" > .env.local
 
       - name: Configure Android signing
         env:

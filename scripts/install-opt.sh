@@ -12,8 +12,14 @@ elif [[ "${FAST:-0}" == "1" ]]; then
   (cd "$ROOT" && bun run build:frontend && bun run tauri build --debug --no-bundle)
   BIN_SRC="$ROOT/src-tauri/target/debug/slate"
 else
-  echo "Building release with embedded frontend (tauri build --no-bundle)..."
-  (cd "$ROOT" && bun run build:frontend && bun run tauri build --no-bundle)
+  if [[ -f "${TAURI_SIGNING_PRIVATE_KEY_PATH:-$HOME/.tauri/slate.key}" ]]; then
+    echo "Building signed release (tauri build --no-bundle)..."
+    export TAURI_SIGNING_PRIVATE_KEY_PATH="${TAURI_SIGNING_PRIVATE_KEY_PATH:-$HOME/.tauri/slate.key}"
+    (cd "$ROOT" && bun run build:frontend && bun run tauri build --no-bundle)
+  else
+    echo "Building release with embedded frontend (tauri build --no-bundle)..."
+    (cd "$ROOT" && bun run build:frontend && bun run tauri build --no-bundle)
+  fi
   BIN_SRC="$ROOT/src-tauri/target/release/slate"
 fi
 

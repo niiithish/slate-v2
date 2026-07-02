@@ -18,7 +18,9 @@
     "test:frontend": "tsc --noEmit",
     "install:fast": "FAST=1 ./scripts/install-opt.sh",
     "install:reuse": "SKIP_BUILD=1 ./scripts/install-opt.sh",
-    "clean:bloat": "./scripts/clean-dev-bloat.sh"
+    "clean:bloat": "./scripts/clean-dev-bloat.sh",
+    "build:android": "bun run tauri android build",
+    "export:apk": "bash scripts/export-apk.sh"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",

@@ -20,6 +20,8 @@ src-tauri/gen/android/app/build
 src-tauri/gen/android/build
 *.apk
 *.apk.idsig
+android.keystore
+src-tauri/gen/android/keystore.properties
 
 # Editor directories and files
 .vscode/*

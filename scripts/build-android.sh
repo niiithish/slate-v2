@@ -40,6 +40,9 @@ cat > src-tauri/gen/android/app/src/main/res/values/ic_launcher_background.xml <
 </resources>
 EOF
 
+echo "Configuring Android APK signing..."
+bash "$ROOT/scripts/setup-android-signing.sh"
+
 echo "Building signed Android APK..."
 if [[ -f "${TAURI_SIGNING_PRIVATE_KEY_PATH:-$HOME/.tauri/slate.key}" ]]; then
   export TAURI_SIGNING_PRIVATE_KEY_PATH="${TAURI_SIGNING_PRIVATE_KEY_PATH:-$HOME/.tauri/slate.key}"

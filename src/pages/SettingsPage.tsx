@@ -5,7 +5,6 @@ import {
   Power,
   SignOut,
 } from "@phosphor-icons/react";
-import type { Update } from "@tauri-apps/plugin-updater";
 import { useEffect, useState } from "react";
 import { useConfirm } from "../components/ConfirmDialog";
 import * as api from "../lib/api";
@@ -16,6 +15,7 @@ import type { User } from "../lib/types";
 import {
   checkForUpdate,
   installUpdate,
+  type PendingUpdate,
   readAppVersion,
   type UpdateState,
   updatesSupported,
@@ -38,7 +38,9 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
     phase: "idle",
     currentVersion: "…",
   });
-  const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
+  const [pendingUpdate, setPendingUpdate] = useState<PendingUpdate | null>(
+    null
+  );
   const [updateBusy, setUpdateBusy] = useState(false);
   const { confirm, dialog: confirmDialog } = useConfirm();
   const canUpdate = updatesSupported();
@@ -215,7 +217,7 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
                 : "Check for updates"}
             </button>
 
-            {pendingUpdate ? (
+            {pendingUpdate?.androidDownloadUrl || pendingUpdate?.desktop ? (
               <button
                 className="focus-ring flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 font-semibold text-black text-sm transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
                 disabled={updateBusy}
@@ -223,7 +225,9 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
                 type="button"
               >
                 <DownloadSimple size={16} weight="bold" />
-                Install v{pendingUpdate.version}
+                {pendingUpdate.androidDownloadUrl
+                  ? `Download v${pendingUpdate.version}`
+                  : `Install v${pendingUpdate.version}`}
               </button>
             ) : null}
           </div>

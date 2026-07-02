@@ -133,3 +133,15 @@ jobs:
           prerelease: false
           tauriScript: bun run tauri
           mobile: android
+
+      - name: Attach slate-android.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          APK="$(find src-tauri/gen/android/app/build/outputs/apk -name 'app-universal-release.apk' | head -1)"
+          if [ -z "$APK" ]; then
+            echo "No signed APK found to upload." >&2
+            exit 1
+          fi
+          cp "$APK" slate-android.apk
+          gh release upload "v$(node -p "require('./package.json').version")" slate-android.apk --clobber

@@ -1,6 +1,8 @@
+use std::future::Future;
 use std::sync::Arc;
 
 use tauri::State;
+use tokio::sync::Mutex;
 
 use crate::auth::{login_user, register_user, resolve_user};
 use crate::db::{DatabaseState, DbError};
@@ -10,32 +12,80 @@ use crate::models::{
 use crate::reminder_scheduler::sync_scheduled_reminders;
 use crate::reminders::upcoming_reminders;
 
-#[derive(Clone)]
-pub struct AppState {
-    pub db: Option<Arc<DatabaseState>>,
-    pub db_error: Option<String>,
+struct DbSlot {
+    db: Option<Arc<DatabaseState>>,
+    error: Option<String>,
 }
 
-impl AppState {
-    pub async fn try_connect() -> Self {
+impl DbSlot {
+    async fn connect() -> Self {
         match DatabaseState::connect().await {
             Ok(db) => Self {
                 db: Some(Arc::new(db)),
-                db_error: None,
+                error: None,
             },
             Err(error) => Self {
                 db: None,
-                db_error: Some(error.to_string()),
+                error: Some(error.to_string()),
             },
         }
     }
 
-    fn require_db(&self) -> Result<&Arc<DatabaseState>, String> {
-        self.db.as_ref().ok_or_else(|| {
-            self.db_error
+    fn require_db(&self) -> Result<Arc<DatabaseState>, String> {
+        self.db.clone().ok_or_else(|| {
+            self.error
                 .clone()
                 .unwrap_or_else(|| "database unavailable".into())
         })
+    }
+}
+
+#[derive(Clone)]
+pub struct AppState {
+    slot: Arc<Mutex<DbSlot>>,
+}
+
+impl AppState {
+    pub async fn try_connect() -> Self {
+        Self {
+            slot: Arc::new(Mutex::new(DbSlot::connect().await)),
+        }
+    }
+
+    pub async fn has_db(&self) -> bool {
+        self.slot.lock().await.db.is_some()
+    }
+
+    pub async fn db_error(&self) -> Option<String> {
+        self.slot.lock().await.error.clone()
+    }
+
+    async fn require_db(&self) -> Result<Arc<DatabaseState>, String> {
+        self.slot.lock().await.require_db()
+    }
+
+    async fn reconnect(&self) -> Result<(), String> {
+        let mut slot = self.slot.lock().await;
+        *slot = DbSlot::connect().await;
+        slot.require_db().map(|_| ())
+    }
+
+    pub async fn with_db<T, F, Fut>(&self, mut run: F) -> Result<T, String>
+    where
+        F: FnMut(Arc<DatabaseState>) -> Fut,
+        Fut: Future<Output = Result<T, DbError>>,
+    {
+        let db = self.require_db().await?;
+        match run(db.clone()).await {
+            Ok(value) => Ok(value),
+            Err(error) if is_transient_db_error(&error) => {
+                self.reconnect().await?;
+                run(self.require_db().await?)
+                    .await
+                    .map_err(map_error)
+            }
+            Err(error) => Err(map_error(error)),
+        }
     }
 }
 
@@ -43,13 +93,23 @@ fn map_error(error: DbError) -> String {
     error.to_string()
 }
 
+fn is_transient_db_error(error: &DbError) -> bool {
+    let message = error.to_string().to_lowercase();
+    message.contains("connection abort")
+        || message.contains("connection error")
+        || message.contains("connection reset")
+        || message.contains("broken pipe")
+        || message.contains("timed out")
+        || message.contains("os error 103")
+}
+
 pub async fn health_check_cmd(state: &AppState) -> Result<HealthResponse, String> {
-    let database = match state.require_db() {
-        Ok(db) => db.health().await.unwrap_or(false),
-        Err(_) => false,
-    };
+    let database = state
+        .with_db(|db| async move { db.health().await })
+        .await
+        .unwrap_or(false);
     Ok(HealthResponse {
-        ok: state.db.is_some(),
+        ok: state.has_db().await,
         database,
         version: env!("CARGO_PKG_VERSION").to_string(),
     })
@@ -61,9 +121,19 @@ pub async fn register_cmd(
     password: String,
     display_name: String,
 ) -> Result<Session, String> {
-    register_user(state.require_db()?, &email, &password, &display_name)
+    state
+        .with_db({
+            let email = email.clone();
+            let password = password.clone();
+            let display_name = display_name.clone();
+            move |db| {
+                let email = email.clone();
+                let password = password.clone();
+                let display_name = display_name.clone();
+                async move { register_user(&db, &email, &password, &display_name).await }
+            }
+        })
         .await
-        .map_err(map_error)
 }
 
 pub async fn login_cmd(
@@ -71,9 +141,17 @@ pub async fn login_cmd(
     email: String,
     password: String,
 ) -> Result<Session, String> {
-    login_user(state.require_db()?, &email, &password)
+    state
+        .with_db({
+            let email = email.clone();
+            let password = password.clone();
+            move |db| {
+                let email = email.clone();
+                let password = password.clone();
+                async move { login_user(&db, &email, &password).await }
+            }
+        })
         .await
-        .map_err(map_error)
 }
 
 pub async fn create_routine_cmd(
@@ -86,22 +164,37 @@ pub async fn create_routine_cmd(
     color: String,
     reminder_enabled: bool,
 ) -> Result<Routine, String> {
-    let user = resolve_user(state.require_db()?, &token)
-        .await
-        .map_err(map_error)?;
     state
-        .require_db()?
-        .create_routine(
-            &user.id,
-            &title,
-            &days,
-            &start_time,
-            &end_time,
-            &color,
-            reminder_enabled,
-        )
+        .with_db({
+            let token = token.clone();
+            let title = title.clone();
+            let days = days.clone();
+            let start_time = start_time.clone();
+            let end_time = end_time.clone();
+            let color = color.clone();
+            move |db| {
+                let token = token.clone();
+                let title = title.clone();
+                let days = days.clone();
+                let start_time = start_time.clone();
+                let end_time = end_time.clone();
+                let color = color.clone();
+                async move {
+                    let user = resolve_user(&db, &token).await?;
+                    db.create_routine(
+                        &user.id,
+                        &title,
+                        &days,
+                        &start_time,
+                        &end_time,
+                        &color,
+                        reminder_enabled,
+                    )
+                    .await
+                }
+            }
+        })
         .await
-        .map_err(map_error)
 }
 
 pub async fn create_habit_cmd(
@@ -110,14 +203,22 @@ pub async fn create_habit_cmd(
     title: String,
     color: String,
 ) -> Result<Habit, String> {
-    let user = resolve_user(state.require_db()?, &token)
-        .await
-        .map_err(map_error)?;
     state
-        .require_db()?
-        .create_habit(&user.id, &title, &color)
+        .with_db({
+            let token = token.clone();
+            let title = title.clone();
+            let color = color.clone();
+            move |db| {
+                let token = token.clone();
+                let title = title.clone();
+                let color = color.clone();
+                async move {
+                    let user = resolve_user(&db, &token).await?;
+                    db.create_habit(&user.id, &title, &color).await
+                }
+            }
+        })
         .await
-        .map_err(map_error)
 }
 
 pub async fn set_habit_status_cmd(
@@ -127,15 +228,26 @@ pub async fn set_habit_status_cmd(
     date: String,
     status: String,
 ) -> Result<TodayState, String> {
-    let user = resolve_user(state.require_db()?, &token)
-        .await
-        .map_err(map_error)?;
     let status = HabitStatus::parse_set_status(&status).map_err(|e| e.to_string())?;
     state
-        .require_db()?
-        .set_habit_status(&user.id, &habit_id, &date, status)
+        .with_db({
+            let token = token.clone();
+            let habit_id = habit_id.clone();
+            let date = date.clone();
+            let status = status.clone();
+            move |db| {
+                let token = token.clone();
+                let habit_id = habit_id.clone();
+                let date = date.clone();
+                let status = status.clone();
+                async move {
+                    let user = resolve_user(&db, &token).await?;
+                    db.set_habit_status(&user.id, &habit_id, &date, status)
+                        .await
+                }
+            }
+        })
         .await
-        .map_err(map_error)
 }
 
 pub async fn lock_day_cmd(
@@ -143,14 +255,20 @@ pub async fn lock_day_cmd(
     token: String,
     date: String,
 ) -> Result<TodayState, String> {
-    let user = resolve_user(state.require_db()?, &token)
-        .await
-        .map_err(map_error)?;
     state
-        .require_db()?
-        .lock_day(&user.id, &date)
+        .with_db({
+            let token = token.clone();
+            let date = date.clone();
+            move |db| {
+                let token = token.clone();
+                let date = date.clone();
+                async move {
+                    let user = resolve_user(&db, &token).await?;
+                    db.lock_day(&user.id, &date).await
+                }
+            }
+        })
         .await
-        .map_err(map_error)
 }
 
 pub async fn update_daily_log_cmd(
@@ -159,14 +277,42 @@ pub async fn update_daily_log_cmd(
     date: String,
     daily_log: DailyLog,
 ) -> Result<TodayState, String> {
-    let user = resolve_user(state.require_db()?, &token)
-        .await
-        .map_err(map_error)?;
     state
-        .require_db()?
-        .upsert_daily_log(&user.id, &date, &daily_log)
+        .with_db({
+            let token = token.clone();
+            let date = date.clone();
+            let daily_log = daily_log.clone();
+            move |db| {
+                let token = token.clone();
+                let date = date.clone();
+                let daily_log = daily_log.clone();
+                async move {
+                    let user = resolve_user(&db, &token).await?;
+                    db.upsert_daily_log(&user.id, &date, &daily_log).await
+                }
+            }
+        })
         .await
-        .map_err(map_error)
+}
+
+#[tauri::command]
+pub fn runtime_platform() -> String {
+    if cfg!(target_os = "android") {
+        return "android".into();
+    }
+    if cfg!(target_os = "ios") {
+        return "ios".into();
+    }
+    if cfg!(target_os = "linux") {
+        return "linux".into();
+    }
+    if cfg!(target_os = "macos") {
+        return "darwin".into();
+    }
+    if cfg!(target_os = "windows") {
+        return "windows".into();
+    }
+    std::env::consts::OS.to_string()
 }
 
 #[tauri::command]
@@ -196,17 +342,27 @@ pub async fn login(
 #[tauri::command]
 pub async fn logout(state: State<'_, AppState>, token: String) -> Result<(), String> {
     state
-        .require_db()?
-        .delete_session(&token)
+        .with_db({
+            let token = token.clone();
+            move |db| {
+                let token = token.clone();
+                async move { db.delete_session(&token).await }
+            }
+        })
         .await
-        .map_err(map_error)
 }
 
 #[tauri::command]
 pub async fn get_me(state: State<'_, AppState>, token: String) -> Result<User, String> {
-    resolve_user(state.require_db()?, &token)
+    state
+        .with_db({
+            let token = token.clone();
+            move |db| {
+                let token = token.clone();
+                async move { resolve_user(&db, &token).await }
+            }
+        })
         .await
-        .map_err(map_error)
 }
 
 #[tauri::command]
@@ -214,14 +370,18 @@ pub async fn list_routines(
     state: State<'_, AppState>,
     token: String,
 ) -> Result<Vec<Routine>, String> {
-    let user = resolve_user(state.require_db()?, &token)
-        .await
-        .map_err(map_error)?;
     state
-        .require_db()?
-        .list_routines(&user.id)
+        .with_db({
+            let token = token.clone();
+            move |db| {
+                let token = token.clone();
+                async move {
+                    let user = resolve_user(&db, &token).await?;
+                    db.list_routines(&user.id).await
+                }
+            }
+        })
         .await
-        .map_err(map_error)
 }
 
 #[tauri::command]
@@ -254,14 +414,20 @@ pub async fn update_routine(
     token: String,
     routine: Routine,
 ) -> Result<Routine, String> {
-    let user = resolve_user(state.require_db()?, &token)
-        .await
-        .map_err(map_error)?;
     state
-        .require_db()?
-        .update_routine(&user.id, &routine)
+        .with_db({
+            let token = token.clone();
+            let routine = routine.clone();
+            move |db| {
+                let token = token.clone();
+                let routine = routine.clone();
+                async move {
+                    let user = resolve_user(&db, &token).await?;
+                    db.update_routine(&user.id, &routine).await
+                }
+            }
+        })
         .await
-        .map_err(map_error)
 }
 
 #[tauri::command]
@@ -270,26 +436,36 @@ pub async fn delete_routine(
     token: String,
     routine_id: String,
 ) -> Result<(), String> {
-    let user = resolve_user(state.require_db()?, &token)
-        .await
-        .map_err(map_error)?;
     state
-        .require_db()?
-        .delete_routine(&user.id, &routine_id)
+        .with_db({
+            let token = token.clone();
+            let routine_id = routine_id.clone();
+            move |db| {
+                let token = token.clone();
+                let routine_id = routine_id.clone();
+                async move {
+                    let user = resolve_user(&db, &token).await?;
+                    db.delete_routine(&user.id, &routine_id).await
+                }
+            }
+        })
         .await
-        .map_err(map_error)
 }
 
 #[tauri::command]
 pub async fn list_habits(state: State<'_, AppState>, token: String) -> Result<Vec<Habit>, String> {
-    let user = resolve_user(state.require_db()?, &token)
-        .await
-        .map_err(map_error)?;
     state
-        .require_db()?
-        .list_habits(&user.id)
+        .with_db({
+            let token = token.clone();
+            move |db| {
+                let token = token.clone();
+                async move {
+                    let user = resolve_user(&db, &token).await?;
+                    db.list_habits(&user.id).await
+                }
+            }
+        })
         .await
-        .map_err(map_error)
 }
 
 #[tauri::command]
@@ -308,14 +484,20 @@ pub async fn update_habit(
     token: String,
     habit: Habit,
 ) -> Result<Habit, String> {
-    let user = resolve_user(state.require_db()?, &token)
-        .await
-        .map_err(map_error)?;
     state
-        .require_db()?
-        .update_habit(&user.id, &habit)
+        .with_db({
+            let token = token.clone();
+            let habit = habit.clone();
+            move |db| {
+                let token = token.clone();
+                let habit = habit.clone();
+                async move {
+                    let user = resolve_user(&db, &token).await?;
+                    db.update_habit(&user.id, &habit).await
+                }
+            }
+        })
         .await
-        .map_err(map_error)
 }
 
 #[tauri::command]
@@ -324,14 +506,20 @@ pub async fn delete_habit(
     token: String,
     habit_id: String,
 ) -> Result<(), String> {
-    let user = resolve_user(state.require_db()?, &token)
-        .await
-        .map_err(map_error)?;
     state
-        .require_db()?
-        .delete_habit(&user.id, &habit_id)
+        .with_db({
+            let token = token.clone();
+            let habit_id = habit_id.clone();
+            move |db| {
+                let token = token.clone();
+                let habit_id = habit_id.clone();
+                async move {
+                    let user = resolve_user(&db, &token).await?;
+                    db.delete_habit(&user.id, &habit_id).await
+                }
+            }
+        })
         .await
-        .map_err(map_error)
 }
 
 #[tauri::command]
@@ -340,15 +528,21 @@ pub async fn get_today_state(
     token: String,
     date: Option<String>,
 ) -> Result<TodayState, String> {
-    let user = resolve_user(state.require_db()?, &token)
-        .await
-        .map_err(map_error)?;
     let date = date.unwrap_or_else(|| chrono::Local::now().date_naive().to_string());
     state
-        .require_db()?
-        .get_today_state(&user.id, &date)
+        .with_db({
+            let token = token.clone();
+            let date = date.clone();
+            move |db| {
+                let token = token.clone();
+                let date = date.clone();
+                async move {
+                    let user = resolve_user(&db, &token).await?;
+                    db.get_today_state(&user.id, &date).await
+                }
+            }
+        })
         .await
-        .map_err(map_error)
 }
 
 #[tauri::command]
@@ -387,14 +581,18 @@ pub async fn get_stats(
     token: String,
     weeks: Option<u32>,
 ) -> Result<StatsState, String> {
-    let user = resolve_user(state.require_db()?, &token)
-        .await
-        .map_err(map_error)?;
     state
-        .require_db()?
-        .get_stats(&user.id, weeks.unwrap_or(12))
+        .with_db({
+            let token = token.clone();
+            move |db| {
+                let token = token.clone();
+                async move {
+                    let user = resolve_user(&db, &token).await?;
+                    db.get_stats(&user.id, weeks.unwrap_or(12)).await
+                }
+            }
+        })
         .await
-        .map_err(map_error)
 }
 
 #[tauri::command]
@@ -402,12 +600,18 @@ pub async fn get_reminder_schedule(
     state: State<'_, AppState>,
     token: String,
 ) -> Result<Vec<crate::reminders::ReminderPayload>, String> {
-    let user = resolve_user(state.require_db()?, &token)
+    state
+        .with_db({
+            let token = token.clone();
+            move |db| {
+                let token = token.clone();
+                async move {
+                    let user = resolve_user(&db, &token).await?;
+                    upcoming_reminders(&db, &user.id).await
+                }
+            }
+        })
         .await
-        .map_err(map_error)?;
-    upcoming_reminders(state.require_db()?, &user.id)
-        .await
-        .map_err(map_error)
 }
 
 #[tauri::command]
@@ -416,11 +620,18 @@ pub async fn sync_reminder_schedules(
     state: State<'_, AppState>,
     token: String,
 ) -> Result<Vec<crate::reminders::ReminderPayload>, String> {
-    let user = resolve_user(state.require_db()?, &token)
+    state
+        .with_db({
+            let token = token.clone();
+            let app = app.clone();
+            move |db| {
+                let token = token.clone();
+                let app = app.clone();
+                async move {
+                    let user = resolve_user(&db, &token).await?;
+                    sync_scheduled_reminders(&app, db, &user.id).await
+                }
+            }
+        })
         .await
-        .map_err(map_error)?;
-    let db = state.require_db()?.clone();
-    sync_scheduled_reminders(&app, db, &user.id)
-        .await
-        .map_err(map_error)
 }

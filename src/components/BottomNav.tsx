@@ -17,7 +17,7 @@ const tabs: Array<{ key: TabKey; label: string; icon: typeof House }> = [
 
 export function BottomNav({ active, onChange }: BottomNavProps) {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 border-border border-t bg-surface-0/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
+    <nav className="fixed inset-x-0 bottom-0 z-20 border-border border-t bg-surface-0/95 pb-[var(--safe-bottom,env(safe-area-inset-bottom,0px))] backdrop-blur-xl">
       <div className="mx-auto flex max-w-lg items-center justify-around px-1.5 py-1.5">
         {tabs.map(({ key, label, icon: Icon }) => {
           const selected = active === key;

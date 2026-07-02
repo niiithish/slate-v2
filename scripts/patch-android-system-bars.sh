@@ -1,3 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+MAIN_ACTIVITY="$ROOT/src-tauri/gen/android/app/src/main/java/com/nithish/slate/MainActivity.kt"
+
+if [[ ! -f "$MAIN_ACTIVITY" ]]; then
+  echo "Android project not initialized: $MAIN_ACTIVITY" >&2
+  exit 1
+fi
+
+cat >"$MAIN_ACTIVITY" <<'EOF'
 package com.nithish.slate
 
 import android.graphics.Color
@@ -60,3 +72,6 @@ class MainActivity : TauriActivity() {
     ViewCompat.requestApplyInsets(webView)
   }
 }
+EOF
+
+echo "Patched MainActivity.kt with system bar insets."

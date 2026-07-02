@@ -1,20 +1,11 @@
 import { getVersion } from "@tauri-apps/api/app";
+import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
-import { isMobileUserAgent, isTauriRuntime } from "./platform";
+import { isMobileRuntime, isTauriRuntime } from "./platform";
 
 const ERROR_PREFIX_RE = /^Error:\s*/i;
-const VERSION_PREFIX_RE = /^v/i;
-const LATEST_JSON_URL =
-  "https://github.com/niiithish/slate-v2/releases/latest/download/latest.json";
-const GITHUB_REPO = "niiithish/slate-v2";
-const ANDROID_APK_NAMES = ["slate-android.apk", "app-universal-release.apk"];
-const ANDROID_PLATFORM_KEYS = [
-  "android-aarch64",
-  "android-armv7",
-  "android-universal",
-];
 
 export type UpdatePhase =
   | "idle"
@@ -41,14 +32,13 @@ export interface PendingUpdate {
   version: string;
 }
 
-interface LatestManifest {
+interface MobileUpdateResponse {
+  androidDownloadUrl?: string;
+  availableVersion?: string;
+  currentVersion: string;
+  message: string;
   notes?: string;
-  platforms?: Record<string, { url?: string }>;
-  version: string;
-}
-
-export function isMobileApp(): boolean {
-  return isTauriRuntime() && isMobileUserAgent();
+  phase: UpdatePhase;
 }
 
 export async function readAppVersion(): Promise<string> {
@@ -68,7 +58,7 @@ export async function checkForUpdate(): Promise<{
 }> {
   const currentVersion = await readAppVersion();
 
-  if (isMobileApp()) {
+  if (await isMobileRuntime()) {
     return checkForMobileUpdate(currentVersion);
   }
 
@@ -99,6 +89,9 @@ export async function checkForUpdate(): Promise<{
       },
     };
   } catch (err) {
+    if (String(err).includes("Unsupported OS")) {
+      return checkForMobileUpdate(currentVersion);
+    }
     return {
       state: {
         phase: "error",
@@ -193,44 +186,28 @@ async function checkForMobileUpdate(
   currentVersion: string
 ): Promise<{ state: UpdateState; pending?: PendingUpdate }> {
   try {
-    const response = await fetch(LATEST_JSON_URL);
-    if (!response.ok) {
-      throw new Error(`Release check failed (${response.status})`);
+    const result = await invoke<MobileUpdateResponse>("check_mobile_update", {
+      currentVersion,
+    });
+
+    const state: UpdateState = {
+      phase: result.phase,
+      currentVersion: result.currentVersion,
+      availableVersion: result.availableVersion,
+      notes: result.notes,
+      message: result.message,
+    };
+
+    if (result.phase !== "available" || !result.availableVersion) {
+      return { state };
     }
-
-    const manifest = (await response.json()) as LatestManifest;
-    const latestVersion = normalizeVersion(manifest.version);
-
-    if (!isNewerVersion(latestVersion, currentVersion)) {
-      return {
-        state: {
-          phase: "current",
-          currentVersion,
-          message: "You're on the latest version.",
-        },
-      };
-    }
-
-    const androidDownloadUrl = await resolveAndroidApkUrl(
-      manifest,
-      latestVersion
-    );
-    const notes = manifest.notes?.trim() || undefined;
 
     return {
-      state: {
-        phase: "available",
-        currentVersion,
-        availableVersion: latestVersion,
-        notes,
-        message: androidDownloadUrl
-          ? `Version ${latestVersion} is available.`
-          : `Version ${latestVersion} is available, but no APK is attached to the release yet.`,
-      },
+      state,
       pending: {
-        version: latestVersion,
-        notes,
-        androidDownloadUrl,
+        version: result.availableVersion,
+        notes: result.notes,
+        androidDownloadUrl: result.androidDownloadUrl,
       },
     };
   } catch (err) {
@@ -244,75 +221,6 @@ async function checkForMobileUpdate(
   }
 }
 
-async function resolveAndroidApkUrl(
-  manifest: LatestManifest,
-  version: string
-): Promise<string | undefined> {
-  for (const key of ANDROID_PLATFORM_KEYS) {
-    const url = manifest.platforms?.[key]?.url;
-    if (url) {
-      return url;
-    }
-  }
-
-  const tag = version.startsWith("v") ? version : `v${version}`;
-  for (const name of ANDROID_APK_NAMES) {
-    const url = `https://github.com/${GITHUB_REPO}/releases/download/${tag}/${name}`;
-    try {
-      const response = await fetch(url, { method: "HEAD" });
-      if (response.ok) {
-        return url;
-      }
-    } catch {
-      // Try the next candidate URL.
-    }
-  }
-
-  try {
-    const response = await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
-      { headers: { Accept: "application/vnd.github+json" } }
-    );
-    if (!response.ok) {
-      return;
-    }
-
-    const release = (await response.json()) as {
-      assets?: Array<{ browser_download_url?: string; name?: string }>;
-    };
-
-    for (const asset of release.assets ?? []) {
-      if (asset.name?.endsWith(".apk") && asset.browser_download_url) {
-        return asset.browser_download_url;
-      }
-    }
-  } catch {
-    return;
-  }
-
-  return;
-}
-
-function normalizeVersion(version: string): string {
-  return version.replace(VERSION_PREFIX_RE, "");
-}
-
-function isNewerVersion(latest: string, current: string): boolean {
-  const latestParts = normalizeVersion(latest).split(".").map(Number);
-  const currentParts = normalizeVersion(current).split(".").map(Number);
-  const length = Math.max(latestParts.length, currentParts.length);
-
-  for (let index = 0; index < length; index += 1) {
-    const next = latestParts[index] ?? 0;
-    const prev = currentParts[index] ?? 0;
-    if (next !== prev) {
-      return next > prev;
-    }
-  }
-
-  return false;
-}
-
 function formatUpdateError(err: unknown): string {
   const raw = String(err);
   if (raw.includes("Unsupported OS")) {
@@ -323,7 +231,8 @@ function formatUpdateError(err: unknown): string {
   }
   if (
     raw.toLowerCase().includes("network") ||
-    raw.toLowerCase().includes("fetch")
+    raw.toLowerCase().includes("fetch") ||
+    raw.toLowerCase().includes("github request failed")
   ) {
     return "Couldn't reach GitHub. Check your connection and try again.";
   }

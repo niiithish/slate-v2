@@ -38,7 +38,7 @@ fn invoke(webview: &WebviewWindow<MockRuntime>, cmd: &str, args: Value) -> Resul
 async fn ipc_invoke_round_trip_with_camel_case_args() {
     load_env();
     let state = AppState::try_connect().await;
-    assert!(state.db.is_some(), "database should connect");
+    assert!(state.has_db().await, "database should connect");
 
     let app = mock_builder()
         .manage(state)

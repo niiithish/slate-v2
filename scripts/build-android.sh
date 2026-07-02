@@ -32,6 +32,9 @@ fi
 echo "Refreshing Android launcher icons..."
 bash "$ROOT/scripts/regenerate-icons.sh"
 
+echo "Patching Android system bars..."
+bash "$ROOT/scripts/patch-android-system-bars.sh"
+
 echo "Configuring Android APK signing..."
 bash "$ROOT/scripts/setup-android-signing.sh"
 

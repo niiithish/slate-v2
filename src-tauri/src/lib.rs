@@ -5,6 +5,7 @@ pub mod db;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod desktop;
 pub mod logic;
+pub mod mobile_updates;
 pub mod models;
 mod reminder_scheduler;
 pub mod reminders;
@@ -27,10 +28,10 @@ pub fn run() {
 
     tauri::async_runtime::block_on(async {
         let state = AppState::try_connect().await;
-        if state.db.is_none() {
+        if !state.has_db().await {
             tracing::error!(
                 "Turso database unavailable: {}",
-                state.db_error.as_deref().unwrap_or("unknown error")
+                state.db_error().await.as_deref().unwrap_or("unknown error")
             );
         }
 
@@ -66,6 +67,8 @@ pub fn run() {
                 Ok(())
             })
             .invoke_handler(tauri::generate_handler![
+                commands::runtime_platform,
+                mobile_updates::check_mobile_update,
                 commands::health_check,
                 commands::register,
                 commands::login,

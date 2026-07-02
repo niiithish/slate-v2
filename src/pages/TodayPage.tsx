@@ -76,7 +76,18 @@ export function TodayPage({ token }: TodayPageProps) {
           daily_log: next.daily_log ?? EMPTY_DAILY_LOG,
         });
       } catch (err) {
-        setError(String(err));
+        const message = String(err);
+        if (
+          message.includes("connection abort") ||
+          message.includes("connection error") ||
+          message.includes("os error 103")
+        ) {
+          setError(
+            "Connection lost. Pull to refresh or try again in a moment."
+          );
+        } else {
+          setError(message);
+        }
       } finally {
         setLoading(false);
       }

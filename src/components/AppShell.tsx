@@ -1,5 +1,5 @@
-import clsx from "clsx";
 import { useDesktopShell } from "../lib/platform";
+import { MobileChrome } from "./MobileChrome";
 import { TitleBar } from "./TitleBar";
 
 interface AppShellProps {
@@ -10,17 +10,10 @@ export function AppShell({ children }: AppShellProps) {
   const desktop = useDesktopShell();
 
   return (
-    <div className="mx-auto flex min-h-full w-full flex-col bg-surface-0">
+    <div className="mx-auto flex min-h-dvh w-full flex-col overflow-x-hidden bg-surface-0">
+      <MobileChrome />
       {desktop ? <TitleBar /> : null}
-      <div
-        className={clsx(
-          "flex min-h-0 flex-1 flex-col",
-          !desktop &&
-            "pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
-        )}
-      >
-        {children}
-      </div>
+      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
     </div>
   );
 }

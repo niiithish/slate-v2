@@ -5,7 +5,10 @@ fn main() {
     if std::env::var("SLATE_SMOKE").is_ok() {
         match slate_lib::smoke_check() {
             Ok(payload) => {
-                println!("{}", serde_json::to_string(&payload).expect("serialize smoke payload"));
+                println!(
+                    "{}",
+                    serde_json::to_string(&payload).expect("serialize smoke payload")
+                );
                 std::process::exit(0);
             }
             Err(error) => {

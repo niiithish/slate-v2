@@ -3,14 +3,35 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 INSTALL_DIR="/opt/slate"
-BIN_SRC="$ROOT/src-tauri/target/release/slate"
 ICON_SRC="$ROOT/src-tauri/icons/icon.png"
 
-echo "Building release with embedded frontend (tauri build --no-bundle)..."
-(cd "$ROOT" && bun run tauri build --no-bundle)
+if [[ "${SKIP_BUILD:-0}" == "1" ]]; then
+  echo "SKIP_BUILD=1 — reusing existing binary."
+elif [[ "${FAST:-0}" == "1" ]]; then
+  echo "FAST=1 — debug build (much quicker, not for shipping)."
+  (cd "$ROOT" && bun run build:frontend && bun run tauri build --debug --no-bundle)
+  BIN_SRC="$ROOT/src-tauri/target/debug/slate"
+else
+  echo "Building release with embedded frontend (tauri build --no-bundle)..."
+  (cd "$ROOT" && bun run build:frontend && bun run tauri build --no-bundle)
+  BIN_SRC="$ROOT/src-tauri/target/release/slate"
+fi
+
+if [[ "${SKIP_BUILD:-0}" != "1" && ! -f "$BIN_SRC" ]]; then
+  echo "Binary missing after build: $BIN_SRC" >&2
+  exit 1
+fi
+
+if [[ "${SKIP_BUILD:-0}" == "1" ]]; then
+  if [[ -f "$ROOT/src-tauri/target/debug/slate" ]]; then
+    BIN_SRC="$ROOT/src-tauri/target/debug/slate"
+  else
+    BIN_SRC="$ROOT/src-tauri/target/release/slate"
+  fi
+fi
 
 if [[ ! -f "$BIN_SRC" ]]; then
-  echo "Release binary missing after build." >&2
+  echo "No slate binary found. Run a build first." >&2
   exit 1
 fi
 

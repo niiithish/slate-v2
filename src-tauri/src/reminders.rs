@@ -3,7 +3,7 @@ use serde::Serialize;
 use tauri_plugin_notification::NotificationExt;
 
 use crate::daily_log_reminders::upcoming_daily_log_reminders;
-use crate::db::{DbError, DbResult, DatabaseState};
+use crate::db::{DatabaseState, DbError, DbResult};
 use crate::logic::next_reminder_fire;
 use crate::models::RoutineSchedule;
 
@@ -54,9 +54,5 @@ pub fn send_notification<R: tauri::Runtime>(
     title: &str,
     body: &str,
 ) -> Result<(), tauri_plugin_notification::Error> {
-    app.notification()
-        .builder()
-        .title(title)
-        .body(body)
-        .show()
+    app.notification().builder().title(title).body(body).show()
 }

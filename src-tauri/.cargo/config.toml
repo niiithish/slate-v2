@@ -1,0 +1,22 @@
+# Keep desktop dev builds from saturating an 11 GB laptop.
+# Tauri + GTK tray linking spikes RAM; fewer parallel jobs avoids swap thrash.
+[build]
+jobs = 4
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[profile.dev]
+# Less debug metadata → smaller artifacts and faster links than the default debug=2.
+debug = 1
+split-debuginfo = "unpacked"
+
+[profile.dev.package."*"]
+# Dependencies run faster without a full rebuild penalty on first compile.
+opt-level = 1
+
+[profile.release-fast]
+inherits = "release"
+opt-level = 2
+codegen-units = 32
+lto = false

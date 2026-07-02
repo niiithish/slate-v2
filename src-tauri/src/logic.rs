@@ -1,5 +1,5 @@
-use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Weekday};
 use crate::models::{DayLog, HabitEntry, HabitStatus, RoutineSchedule};
+use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Weekday};
 
 pub fn progress_percentage(entries: &[HabitEntry]) -> f64 {
     if entries.is_empty() {
@@ -37,16 +37,13 @@ pub fn day_fully_avoided(logs: &[DayLog], date: NaiveDate, habit_ids: &[String])
         return false;
     }
     habit_ids.iter().all(|habit_id| {
-        logs.iter()
-            .any(|log| log.date == date && log.habit_id == *habit_id && log.status == HabitStatus::Avoided)
+        logs.iter().any(|log| {
+            log.date == date && log.habit_id == *habit_id && log.status == HabitStatus::Avoided
+        })
     })
 }
 
-pub fn calculate_current_streak(
-    logs: &[DayLog],
-    habit_ids: &[String],
-    today: NaiveDate,
-) -> u32 {
+pub fn calculate_current_streak(logs: &[DayLog], habit_ids: &[String], today: NaiveDate) -> u32 {
     if habit_ids.is_empty() {
         return 0;
     }
@@ -163,10 +160,7 @@ pub fn is_reminder_due_now(
     elapsed >= 0 && elapsed < window_minutes
 }
 
-pub fn next_reminder_fire(
-    routine: &RoutineSchedule,
-    now: NaiveDateTime,
-) -> Option<NaiveDateTime> {
+pub fn next_reminder_fire(routine: &RoutineSchedule, now: NaiveDateTime) -> Option<NaiveDateTime> {
     if !routine.reminder_enabled {
         return None;
     }
@@ -228,10 +222,7 @@ pub fn next_evening_log_reminder(now: NaiveDateTime) -> NaiveDateTime {
     if now < today {
         today
     } else {
-        NaiveDateTime::new(
-            now.date() + chrono::Duration::days(1),
-            fire_time,
-        )
+        NaiveDateTime::new(now.date() + chrono::Duration::days(1), fire_time)
     }
 }
 
@@ -412,11 +403,14 @@ mod tests {
 
     #[test]
     fn water_reminders_every_six_hours() {
-        let morning = NaiveDateTime::parse_from_str("2026-07-02 07:30:00", "%Y-%m-%d %H:%M:%S")
-            .unwrap();
+        let morning =
+            NaiveDateTime::parse_from_str("2026-07-02 07:30:00", "%Y-%m-%d %H:%M:%S").unwrap();
         let fires = upcoming_water_reminders(morning, 1);
         assert_eq!(
-            fires.iter().map(|fire| fire.to_string()).collect::<Vec<_>>(),
+            fires
+                .iter()
+                .map(|fire| fire.to_string())
+                .collect::<Vec<_>>(),
             vec![
                 "2026-07-02 12:00:00".to_string(),
                 "2026-07-02 18:00:00".to_string(),

@@ -2,10 +2,12 @@ pub mod auth;
 pub mod commands;
 pub mod daily_log_reminders;
 pub mod db;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod desktop;
 pub mod logic;
 pub mod models;
-pub mod reminders;
 mod reminder_scheduler;
+pub mod reminders;
 pub mod testing;
 
 use commands::AppState;
@@ -32,11 +34,27 @@ pub fn run() {
             );
         }
 
-        tauri::Builder::default()
+        let mut builder = tauri::Builder::default()
+            .plugin(tauri_plugin_process::init())
+            .plugin(tauri_plugin_updater::Builder::new().build())
             .plugin(tauri_plugin_opener::init())
             .plugin(tauri_plugin_notification::init())
-            .manage(state)
+            .manage(state);
+
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        {
+            builder = builder.plugin(
+                tauri_plugin_autostart::Builder::new()
+                    .arg("--background")
+                    .build(),
+            );
+        }
+
+        builder
             .setup(|app| {
+                #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                desktop::setup_desktop(app)?;
+
                 #[cfg(not(mobile))]
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.set_fullscreen(false);

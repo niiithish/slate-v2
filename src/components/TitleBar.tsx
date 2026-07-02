@@ -6,8 +6,8 @@ export function TitleBar() {
     await getCurrentWindow().minimize();
   }
 
-  async function close() {
-    await getCurrentWindow().close();
+  async function hideToTray() {
+    await getCurrentWindow().hide();
   }
 
   return (
@@ -25,8 +25,8 @@ export function TitleBar() {
       </button>
       <button
         type="button"
-        onClick={close}
-        aria-label="Close"
+        onClick={hideToTray}
+        aria-label="Hide to tray"
         className="focus-ring flex h-6 w-7 items-center justify-center rounded text-text-muted transition hover:bg-danger-soft hover:text-danger active:scale-95"
       >
         <X size={11} weight="bold" />

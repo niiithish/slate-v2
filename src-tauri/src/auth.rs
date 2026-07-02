@@ -4,7 +4,7 @@ use argon2::{
 };
 use rand::rngs::OsRng;
 
-use crate::db::{DbError, DbResult, DatabaseState};
+use crate::db::{DatabaseState, DbError, DbResult};
 use crate::models::{Session, User};
 
 pub fn hash_password(password: &str) -> DbResult<String> {
@@ -18,8 +18,8 @@ pub fn hash_password(password: &str) -> DbResult<String> {
 }
 
 pub fn verify_password(password: &str, password_hash: &str) -> DbResult<bool> {
-    let parsed = PasswordHash::new(password_hash)
-        .map_err(|e| DbError::InvalidInput(e.to_string()))?;
+    let parsed =
+        PasswordHash::new(password_hash).map_err(|e| DbError::InvalidInput(e.to_string()))?;
     Ok(Argon2::default()
         .verify_password(password.as_bytes(), &parsed)
         .is_ok())

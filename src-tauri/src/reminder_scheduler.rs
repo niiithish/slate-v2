@@ -86,9 +86,7 @@ pub async fn sync_scheduled_reminders<R: Runtime>(
                     "Routine reminder",
                     &format!("{title} starts now"),
                 );
-                let _ = db
-                    .record_reminder_fire(&user_id, &routine_id, &date)
-                    .await;
+                let _ = db.record_reminder_fire(&user_id, &routine_id, &date).await;
             });
             handles.insert(key, handle);
         }
@@ -106,7 +104,9 @@ pub async fn sync_scheduled_reminders<R: Runtime>(
 
     for payload in upcoming_daily_log_reminders(now) {
         let fire_at = chrono::NaiveDateTime::parse_from_str(&payload.fire_at, "%Y-%m-%d %H:%M:%S")
-            .map_err(|_| crate::db::DbError::InvalidInput("invalid daily log reminder time".into()))?;
+            .map_err(|_| {
+                crate::db::DbError::InvalidInput("invalid daily log reminder time".into())
+            })?;
         payloads.push(payload.clone());
 
         let Some((title, body)) = daily_log_reminder_body(&payload.routine_id) else {
@@ -119,7 +119,10 @@ pub async fn sync_scheduled_reminders<R: Runtime>(
             let db = db.clone();
             let user_id = user_id.to_string();
             let reminder_id = payload.routine_id.clone();
-            let key = format!("{user_id}:{reminder_id}:{}", fire_at.format("%Y-%m-%d %H:%M"));
+            let key = format!(
+                "{user_id}:{reminder_id}:{}",
+                fire_at.format("%Y-%m-%d %H:%M")
+            );
 
             let handle = tokio::spawn(async move {
                 wait_until(fire_at).await;
@@ -138,9 +141,7 @@ pub async fn sync_scheduled_reminders<R: Runtime>(
                     return;
                 }
                 let _ = send_notification(&app_handle, title, body);
-                let _ = db
-                    .record_reminder_fire(&user_id, &reminder_id, &date)
-                    .await;
+                let _ = db.record_reminder_fire(&user_id, &reminder_id, &date).await;
             });
             handles.insert(key, handle);
         }

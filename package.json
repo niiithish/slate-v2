@@ -6,11 +6,19 @@
   "packageManager": "bun@1.3.14",
   "scripts": {
     "dev": "vite",
+    "dev:web": "vite",
+    "dev:desktop": "tauri dev",
     "build": "tsc && vite build",
+    "build:frontend": "vite build",
+    "check": "tsc --noEmit",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test:logic": "cd src-tauri && cargo test",
-    "test:frontend": "tsc --noEmit"
+    "test:logic": "cd src-tauri && cargo test --lib",
+    "test:logic:all": "cd src-tauri && cargo test",
+    "test:frontend": "tsc --noEmit",
+    "install:fast": "FAST=1 ./scripts/install-opt.sh",
+    "install:reuse": "SKIP_BUILD=1 ./scripts/install-opt.sh",
+    "clean:bloat": "./scripts/clean-dev-bloat.sh"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",
@@ -18,7 +26,10 @@
     "@phosphor-icons/react": "^2.1.10",
     "@tailwindcss/vite": "^4.3.2",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-autostart": "~2",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-process": "~2",
+    "@tauri-apps/plugin-updater": "~2",
     "clsx": "^2.1.1",
     "motion": "^12.42.2",
     "react": "^19.1.0",

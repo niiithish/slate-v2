@@ -8,7 +8,9 @@ use slate_lib::logic::{upcoming_evening_log_reminders, upcoming_water_reminders}
 fn evening_log_reminder_schedule_includes_ten_pm() {
     let now = NaiveDateTime::parse_from_str("2026-07-02 09:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
     let fires = upcoming_evening_log_reminders(now, 2);
-    assert!(fires.iter().any(|fire| fire.to_string().ends_with("22:00:00")));
+    assert!(fires
+        .iter()
+        .any(|fire| fire.to_string().ends_with("22:00:00")));
 
     let payloads = upcoming_daily_log_reminders(now);
     let evening = payloads

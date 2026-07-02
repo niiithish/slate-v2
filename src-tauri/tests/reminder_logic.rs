@@ -48,5 +48,9 @@ fn due_reminder_only_inside_start_window() {
         .unwrap();
 
     assert!(is_reminder_due_now(&routine, due, REMINDER_WINDOW_MINUTES));
-    assert!(!is_reminder_due_now(&routine, before, REMINDER_WINDOW_MINUTES));
+    assert!(!is_reminder_due_now(
+        &routine,
+        before,
+        REMINDER_WINDOW_MINUTES
+    ));
 }

@@ -7,13 +7,13 @@ use rand::RngCore;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::models::{
-    DailyLog, DayLog, Habit, HabitEntry, HabitStatus, HabitStreak, HeatmapCell, Routine, Session,
-    StatsState, TodayState, User,
-};
 use crate::logic::{
     calculate_current_streak, calculate_habit_streaks, can_edit_day, heatmap_completion_rate,
     is_routine_active_today, progress_percentage, validate_daily_log_fields,
+};
+use crate::models::{
+    DailyLog, DayLog, Habit, HabitEntry, HabitStatus, HabitStreak, HeatmapCell, Routine, Session,
+    StatsState, TodayState, User,
 };
 
 struct HabitRecord {
@@ -48,8 +48,8 @@ pub struct DatabaseState {
 impl DatabaseState {
     pub async fn connect() -> DbResult<Self> {
         load_env();
-        let url = env_var("DATABASE_URL")
-            .ok_or_else(|| DbError::Env("DATABASE_URL missing".into()))?;
+        let url =
+            env_var("DATABASE_URL").ok_or_else(|| DbError::Env("DATABASE_URL missing".into()))?;
         let token = env_var("DATABASE_TOKEN")
             .ok_or_else(|| DbError::Env("DATABASE_TOKEN missing".into()))?;
 
@@ -323,11 +323,7 @@ impl DatabaseState {
         })
     }
 
-    pub async fn update_routine(
-        &self,
-        user_id: &str,
-        routine: &Routine,
-    ) -> DbResult<Routine> {
+    pub async fn update_routine(&self, user_id: &str, routine: &Routine) -> DbResult<Routine> {
         let conn = self.connection()?;
         let days_json = serde_json::to_string(&routine.days).unwrap_or_else(|_| "[]".into());
         let updated = conn
@@ -386,12 +382,7 @@ impl DatabaseState {
         Ok(habits)
     }
 
-    pub async fn create_habit(
-        &self,
-        user_id: &str,
-        title: &str,
-        color: &str,
-    ) -> DbResult<Habit> {
+    pub async fn create_habit(&self, user_id: &str, title: &str, color: &str) -> DbResult<Habit> {
         let conn = self.connection()?;
         let id = Uuid::new_v4().to_string();
         let created_at = Utc::now().to_rfc3339();
@@ -593,13 +584,7 @@ impl DatabaseState {
             "INSERT INTO daily_entries (id, user_id, habit_id, date, status)
              VALUES (?, ?, ?, ?, ?)
              ON CONFLICT(user_id, habit_id, date) DO UPDATE SET status = excluded.status",
-            (
-                id.as_str(),
-                user_id,
-                habit_id,
-                date,
-                status.as_str(),
-            ),
+            (id.as_str(), user_id, habit_id, date, status.as_str()),
         )
         .await?;
         self.get_today_state(user_id, date).await
@@ -618,11 +603,13 @@ impl DatabaseState {
         }
         let state = self.get_today_state(user_id, date).await?;
         if state.entries.is_empty() {
-            return Err(DbError::InvalidInput(
-                "add habits before locking".into(),
-            ));
+            return Err(DbError::InvalidInput("add habits before locking".into()));
         }
-        if state.entries.iter().any(|e| e.status == HabitStatus::Pending) {
+        if state
+            .entries
+            .iter()
+            .any(|e| e.status == HabitStatus::Pending)
+        {
             return Err(DbError::InvalidInput(
                 "complete all habits before locking".into(),
             ));
@@ -749,15 +736,21 @@ impl DatabaseState {
             let date_str = date.to_string();
             let day_logs: Vec<_> = logs.iter().filter(|l| l.date == date).collect();
             let active_on_day = Self::habits_active_on_date(&habit_records, date);
-            let active_ids: std::collections::HashSet<_> =
-                active_on_day.iter().map(|habit| habit.id.as_str()).collect();
+            let active_ids: std::collections::HashSet<_> = active_on_day
+                .iter()
+                .map(|habit| habit.id.as_str())
+                .collect();
             let avoided = day_logs
                 .iter()
-                .filter(|l| l.status == HabitStatus::Avoided && active_ids.contains(l.habit_id.as_str()))
+                .filter(|l| {
+                    l.status == HabitStatus::Avoided && active_ids.contains(l.habit_id.as_str())
+                })
                 .count() as u32;
             let slipped = day_logs
                 .iter()
-                .filter(|l| l.status == HabitStatus::Slipped && active_ids.contains(l.habit_id.as_str()))
+                .filter(|l| {
+                    l.status == HabitStatus::Slipped && active_ids.contains(l.habit_id.as_str())
+                })
                 .count() as u32;
             let total = active_on_day.len() as u32;
             heatmap.push(HeatmapCell {
@@ -806,7 +799,10 @@ impl DatabaseState {
 
         let conn = self.connection()?;
         let mut rows = conn
-            .query("SELECT COUNT(*) FROM day_locks WHERE user_id = ?", [user_id])
+            .query(
+                "SELECT COUNT(*) FROM day_locks WHERE user_id = ?",
+                [user_id],
+            )
             .await?;
         let days_locked = if let Some(row) = rows.next().await? {
             row.get::<i64>(0)? as u32

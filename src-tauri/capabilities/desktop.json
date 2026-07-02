@@ -1,0 +1,20 @@
+{
+  "identifier": "desktop-capability",
+  "platforms": [
+    "macOS",
+    "windows",
+    "linux"
+  ],
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "autostart:default",
+    "core:tray:default",
+    "core:menu:default",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "updater:default",
+    "process:default"
+  ]
+}

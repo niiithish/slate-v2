@@ -18,11 +18,7 @@ fn load_env() {
 #[tokio::test]
 async fn turso_round_trip_routine_habit_and_daily_log() {
     load_env();
-    let db = Arc::new(
-        DatabaseState::connect()
-            .await
-            .expect("connect to Turso"),
-    );
+    let db = Arc::new(DatabaseState::connect().await.expect("connect to Turso"));
 
     let suffix = Uuid::new_v4().to_string();
     let email = format!("test-{suffix}@slate.local");
@@ -60,7 +56,9 @@ async fn turso_round_trip_routine_habit_and_daily_log() {
     assert_eq!(state.entries[0].status, HabitStatus::Avoided);
 
     let routines = db.list_routines(&user.id).await.expect("list routines");
-    assert!(routines.iter().any(|r| r.id == routine.id && r.title == "Morning Focus"));
+    assert!(routines
+        .iter()
+        .any(|r| r.id == routine.id && r.title == "Morning Focus"));
 
     let reread = db
         .get_today_state(&user.id, &date)
@@ -73,11 +71,7 @@ async fn turso_round_trip_routine_habit_and_daily_log() {
 #[tokio::test]
 async fn turso_round_trip_daily_log_fields() {
     load_env();
-    let db = std::sync::Arc::new(
-        DatabaseState::connect()
-            .await
-            .expect("connect to Turso"),
-    );
+    let db = std::sync::Arc::new(DatabaseState::connect().await.expect("connect to Turso"));
 
     let suffix = Uuid::new_v4().to_string();
     let email = format!("dailylog-{suffix}@slate.local");

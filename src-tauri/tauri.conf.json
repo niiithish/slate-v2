@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "bun run build",
+    "beforeBuildCommand": "bun run build:frontend",
     "frontendDist": "../dist"
   },
   "app": {
@@ -27,9 +27,18 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDMwNkI4N0M4NjU3NzMwMjUKUldRbE1IZGx5SWRyTU83WjE5WC9kaXdPM1RoQnFHTWpzWjZzVGREbndrMzhrQmRONzVNWURkNzEK",
+      "endpoints": [
+        "https://github.com/niiithish/slate-v2/releases/latest/download/latest.json"
+      ]
+    }
+  },
   "bundle": {
     "active": true,
-    "targets": ["deb", "rpm"],
+    "createUpdaterArtifacts": true,
+    "targets": ["deb", "rpm", "appimage"],
     "android": {
       "minSdkVersion": 24
     },

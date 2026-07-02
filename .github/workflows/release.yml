@@ -87,6 +87,13 @@ jobs:
       - name: Install Android SDK packages
         run: |
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0" "ndk;27.2.12479018"
+          NDK_DIR="$(ls -d "$ANDROID_HOME/ndk"/* | sort -V | tail -1)"
+          echo "NDK_HOME=$NDK_DIR" >> "$GITHUB_ENV"
+          echo "$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "$GITHUB_PATH"
+
+      - name: Install Android Rust targets
+        run: |
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
@@ -117,12 +124,20 @@ jobs:
           keyPassword=$ANDROID_KEY_PASSWORD
           EOF
 
+      - name: Refresh Android launcher icons
+        run: |
+          bun run tauri icon src-tauri/icons/icon.png
+          cat > src-tauri/gen/android/app/src/main/res/values/ic_launcher_background.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+            <color name="ic_launcher_background">#000000</color>
+          </resources>
+          EOF
+
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          ANDROID_HOME: ${{ env.ANDROID_HOME }}
-          NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
         with:
           tagName: v__VERSION__
           releaseName: Slate v__VERSION__

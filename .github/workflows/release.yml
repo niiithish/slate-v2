@@ -113,14 +113,7 @@ jobs:
         run: bash scripts/setup-android-signing.sh
 
       - name: Refresh Android launcher icons
-        run: |
-          bun run tauri icon src-tauri/icons/icon.png
-          cat > src-tauri/gen/android/app/src/main/res/values/ic_launcher_background.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-            <color name="ic_launcher_background">#000000</color>
-          </resources>
-          EOF
+        run: bash scripts/regenerate-icons.sh
 
       - uses: tauri-apps/tauri-action@v1
         env:

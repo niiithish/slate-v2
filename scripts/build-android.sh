@@ -30,15 +30,7 @@ if [[ ! -f .env.local ]]; then
 fi
 
 echo "Refreshing Android launcher icons..."
-bun run tauri icon src-tauri/icons/icon.png
-
-# tauri icon resets adaptive-icon background to white; Slate uses black.
-cat > src-tauri/gen/android/app/src/main/res/values/ic_launcher_background.xml <<'EOF'
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-  <color name="ic_launcher_background">#000000</color>
-</resources>
-EOF
+bash "$ROOT/scripts/regenerate-icons.sh"
 
 echo "Configuring Android APK signing..."
 bash "$ROOT/scripts/setup-android-signing.sh"

@@ -41,6 +41,7 @@
     "install:fast": "FAST=1 ./scripts/install-opt.sh",
     "install:reuse": "SKIP_BUILD=1 ./scripts/install-opt.sh",
     "clean:bloat": "./scripts/clean-dev-bloat.sh",
+    "icons": "bash scripts/regenerate-icons.sh",
     "build:android": "bun run tauri android build",
     "export:apk": "bash scripts/export-apk.sh",
     "fix": "ultracite fix"

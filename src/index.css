@@ -1,0 +1,59 @@
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Geist Variable", "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+
+  --color-surface-0: #010101;
+  --color-surface-1: #050505;
+  --color-surface-2: #0a0a0a;
+  --color-surface-3: #111111;
+  --color-border: rgb(255 255 255 / 0.06);
+  --color-border-strong: rgb(255 255 255 / 0.1);
+  --color-text-primary: #f4f4f5;
+  --color-text-secondary: #a1a1aa;
+  --color-text-muted: #71717a;
+  --color-accent: #6bda0a;
+  --color-accent-soft: rgb(107 218 10 / 0.16);
+  --color-success: #22c55e;
+  --color-success-soft: rgb(34 197 94 / 0.14);
+  --color-danger: #ef4444;
+  --color-danger-soft: rgb(239 68 68 / 0.14);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--color-surface-0);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-accent-soft);
+  color: var(--color-text-primary);
+}
+
+.glass-panel {
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border);
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="slate_background">#FF010101</color>
+    <color name="slate_surface">#FF050505</color>
+</resources>

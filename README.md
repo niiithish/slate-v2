@@ -1,0 +1,101 @@
+# Slate
+
+Personal routine and habit tracker — Tauri 2 + React + Turso.
+
+## Prerequisites
+
+- [Bun](https://bun.sh/)
+- Rust toolchain
+- WebKitGTK (Arch: `pacman -S webkit2gtk-4.1`)
+
+## Setup
+
+```bash
+bun install
+```
+
+Turso credentials go in `.env.local` (`DATABASE_URL`, `DATABASE_TOKEN`).
+
+## Development
+
+```bash
+bun run tauri dev
+```
+
+## Sync (Linux + Android)
+
+All data lives in your **Turso cloud database**. Both apps talk to the same remote DB.
+
+1. Build each platform with the same `.env.local` (credentials are embedded at compile time).
+2. Sign in with the **same email/password** on Linux and Android.
+3. Changes on one device show on the other after refresh (or reopening the app).
+
+There is no separate sync step — Turso is the source of truth.
+
+## Build for Arch Linux
+
+```bash
+bun run tauri build
+```
+
+Artifacts land in `src-tauri/target/release/bundle/`:
+
+| Format | Path | Arch install |
+|--------|------|--------------|
+| `.deb` | `deb/Slate_0.1.0_amd64.deb` | `sudo pacman -S debtap` then `debtap --install Slate_0.1.0_amd64.deb` |
+| `.rpm` | `rpm/Slate-0.1.0-1.x86_64.rpm` | `sudo pacman -S rpm-tools` then `rpm2cpio … \| cpio -idmv` (or use `yay -S slate` if you publish a PKGBUILD) |
+| Binary | `../release/slate` | Run directly |
+
+Tauri does not emit a `.tar.gz` by default. Use the `.deb` or run the binary.
+
+### Install without rebuilding
+
+If you built without `.env.local` present, create a config file instead:
+
+```bash
+mkdir -p ~/.config/com.nithish.slate
+cp .env.local ~/.config/com.nithish.slate/.env
+chmod 600 ~/.config/com.nithish.slate/.env
+```
+
+## Build Android APK
+
+Install the SDK once:
+
+```bash
+# Arch packages
+sudo pacman -S android-tools android-udev
+
+# SDK + NDK (Android Studio or cmdline-tools)
+export ANDROID_HOME="$HOME/Android/Sdk"
+export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+
+sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0" "ndk;27.2.12479018"
+```
+
+Build the APK (reads `.env.local` automatically):
+
+```bash
+bun run tauri android build
+```
+
+Signed release APK:
+
+```
+src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
+```
+
+Install on phone:
+
+```bash
+adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
+```
+
+Or copy the APK to your phone and open it (enable "Install unknown apps" for your file manager).
+
+## Tests
+
+```bash
+bun run test:frontend
+bun run test:logic
+```

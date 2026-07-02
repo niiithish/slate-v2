@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  DailyLog,
   Habit,
   HabitStatus,
   HealthResponse,
@@ -93,6 +94,10 @@ export function setHabitStatus(
 
 export function lockDay(token: string, date: string) {
   return invoke<TodayState>("lock_day", { token, date });
+}
+
+export function updateDailyLog(token: string, date: string, daily_log: DailyLog) {
+  return invoke<TodayState>("update_daily_log", { token, date, dailyLog: daily_log });
 }
 
 export function getStats(token: string, weeks?: number) {

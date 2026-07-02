@@ -1,4 +1,4 @@
-mod auth;
+pub mod auth;
 pub mod commands;
 pub mod db;
 pub mod logic;
@@ -64,6 +64,7 @@ pub fn run() {
                 commands::get_today_state,
                 commands::set_habit_status,
                 commands::lock_day,
+                commands::update_daily_log,
                 commands::get_stats,
                 commands::get_reminder_schedule,
                 commands::sync_reminder_schedules,

@@ -97,6 +97,14 @@ pub struct HabitEntry {
     pub status: HabitStatus,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct DailyLog {
+    pub trading_profit: Option<f64>,
+    pub book_title: Option<String>,
+    pub book_description: Option<String>,
+    pub water_ml: Option<u32>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TodayState {
     pub date: String,
@@ -105,6 +113,8 @@ pub struct TodayState {
     pub progress: f64,
     pub current_streak: u32,
     pub routines: Vec<Routine>,
+    #[serde(default)]
+    pub daily_log: DailyLog,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

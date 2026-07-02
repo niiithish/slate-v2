@@ -5,7 +5,7 @@ use tauri::State;
 use crate::auth::{login_user, register_user, resolve_user};
 use crate::db::{DatabaseState, DbError};
 use crate::models::{
-    HealthResponse, Habit, HabitStatus, Routine, Session, StatsState, TodayState, User,
+    DailyLog, HealthResponse, Habit, HabitStatus, Routine, Session, StatsState, TodayState, User,
 };
 use crate::reminder_scheduler::sync_scheduled_reminders;
 use crate::reminders::upcoming_reminders;
@@ -139,6 +139,20 @@ pub async fn lock_day_cmd(
     state
         .require_db()?
         .lock_day(&user.id, &date)
+        .await
+        .map_err(map_error)
+}
+
+pub async fn update_daily_log_cmd(
+    state: &AppState,
+    token: String,
+    date: String,
+    daily_log: DailyLog,
+) -> Result<TodayState, String> {
+    let user = resolve_user(state.require_db()?, &token).await.map_err(map_error)?;
+    state
+        .require_db()?
+        .upsert_daily_log(&user.id, &date, &daily_log)
         .await
         .map_err(map_error)
 }
@@ -327,6 +341,16 @@ pub async fn lock_day(
     date: String,
 ) -> Result<TodayState, String> {
     lock_day_cmd(state.inner(), token, date).await
+}
+
+#[tauri::command]
+pub async fn update_daily_log(
+    state: State<'_, AppState>,
+    token: String,
+    date: String,
+    daily_log: DailyLog,
+) -> Result<TodayState, String> {
+    update_daily_log_cmd(state.inner(), token, date, daily_log).await
 }
 
 #[tauri::command]

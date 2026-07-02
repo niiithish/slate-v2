@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
-import { CheckCircle, LockSimple, WarningCircle } from "@phosphor-icons/react";
+import { BookOpen, CheckCircle, CurrencyDollar, Drop, LockSimple, WarningCircle } from "@phosphor-icons/react";
 import { useConfirm } from "../components/ConfirmDialog";
 import { ProgressRing } from "../components/ProgressRing";
 import * as api from "../lib/api";
-import type { TodayState } from "../lib/types";
+import type { DailyLog, TodayState } from "../lib/types";
 
 interface TodayPageProps {
   token: string;
@@ -21,7 +21,15 @@ export function TodayPage({ token }: TodayPageProps) {
     setError(null);
     try {
       const next = await api.getTodayState(token);
-      setState(next);
+      setState({
+        ...next,
+        daily_log: next.daily_log ?? {
+          trading_profit: null,
+          book_title: null,
+          book_description: null,
+          water_ml: null,
+        },
+      });
     } catch (err) {
       setError(String(err));
     } finally {
@@ -41,6 +49,23 @@ export function TodayPage({ token }: TodayPageProps) {
     } catch (err) {
       setError(String(err));
     }
+  }
+
+  async function saveDailyLog(nextLog: DailyLog) {
+    if (!state || state.locked) return;
+    try {
+      const next = await api.updateDailyLog(token, state.date, nextLog);
+      setState(next);
+    } catch (err) {
+      setError(String(err));
+    }
+  }
+
+  function patchDailyLog(patch: Partial<DailyLog>) {
+    if (!state) return;
+    const nextLog: DailyLog = { ...state.daily_log, ...patch };
+    setState({ ...state, daily_log: nextLog });
+    void saveDailyLog(nextLog);
   }
 
   function handleLockDay() {
@@ -198,6 +223,87 @@ export function TodayPage({ token }: TodayPageProps) {
             ))}
           </div>
         )}
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="text-sm font-medium text-text-secondary">Daily log</h3>
+        <div className="space-y-3 rounded-2xl border border-border bg-surface-2 p-4">
+          <label className="block space-y-1.5">
+            <span className="inline-flex items-center gap-1.5 text-xs text-text-muted">
+              <CurrencyDollar size={14} weight="fill" />
+              Trading profit
+            </span>
+            <input
+              type="number"
+              step="0.01"
+              disabled={state.locked}
+              value={state.daily_log.trading_profit ?? ""}
+              onChange={(event) => {
+                const raw = event.target.value;
+                patchDailyLog({
+                  trading_profit: raw === "" ? null : Number.parseFloat(raw),
+                });
+              }}
+              placeholder="0.00"
+              className="focus-ring w-full rounded-xl border border-border bg-surface-3 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted disabled:opacity-50"
+            />
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="inline-flex items-center gap-1.5 text-xs text-text-muted">
+              <BookOpen size={14} weight="fill" />
+              Book title
+            </span>
+            <input
+              type="text"
+              disabled={state.locked}
+              value={state.daily_log.book_title ?? ""}
+              onChange={(event) => {
+                const value = event.target.value;
+                patchDailyLog({ book_title: value === "" ? null : value });
+              }}
+              placeholder="What are you reading?"
+              className="focus-ring w-full rounded-xl border border-border bg-surface-3 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted disabled:opacity-50"
+            />
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="text-xs text-text-muted">Reading notes</span>
+            <textarea
+              rows={3}
+              disabled={state.locked}
+              value={state.daily_log.book_description ?? ""}
+              onChange={(event) => {
+                const value = event.target.value;
+                patchDailyLog({ book_description: value === "" ? null : value });
+              }}
+              placeholder="What did you read about today?"
+              className="focus-ring w-full resize-none rounded-xl border border-border bg-surface-3 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted disabled:opacity-50"
+            />
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="inline-flex items-center gap-1.5 text-xs text-text-muted">
+              <Drop size={14} weight="fill" />
+              Water (ml)
+            </span>
+            <input
+              type="number"
+              min={0}
+              step={100}
+              disabled={state.locked}
+              value={state.daily_log.water_ml ?? ""}
+              onChange={(event) => {
+                const raw = event.target.value;
+                patchDailyLog({
+                  water_ml: raw === "" ? null : Number.parseInt(raw, 10),
+                });
+              }}
+              placeholder="2500"
+              className="focus-ring w-full rounded-xl border border-border bg-surface-3 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted disabled:opacity-50"
+            />
+          </label>
+        </div>
       </section>
 
       {error ? (

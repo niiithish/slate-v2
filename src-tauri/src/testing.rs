@@ -8,6 +8,7 @@ macro_rules! persist_invoke_handler {
             $crate::commands::set_habit_status,
             $crate::commands::lock_day,
             $crate::commands::get_today_state,
+            $crate::commands::update_daily_log,
         ]
     };
 }

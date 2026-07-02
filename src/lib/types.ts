@@ -35,6 +35,13 @@ export interface HabitEntry {
   status: HabitStatus;
 }
 
+export interface DailyLog {
+  trading_profit: number | null;
+  book_title: string | null;
+  book_description: string | null;
+  water_ml: number | null;
+}
+
 export interface TodayState {
   date: string;
   locked: boolean;
@@ -42,6 +49,7 @@ export interface TodayState {
   progress: number;
   current_streak: number;
   routines: Routine[];
+  daily_log: DailyLog;
 }
 
 export interface HeatmapCell {

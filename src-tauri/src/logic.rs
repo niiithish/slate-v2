@@ -186,6 +186,37 @@ pub fn next_reminder_fire(
     None
 }
 
+pub const MAX_BOOK_TITLE_LEN: usize = 200;
+pub const MAX_BOOK_DESCRIPTION_LEN: usize = 2000;
+pub const MAX_WATER_ML: u32 = 20_000;
+
+pub fn validate_daily_log_fields(
+    book_title: &Option<String>,
+    book_description: &Option<String>,
+    water_ml: &Option<u32>,
+) -> Result<(), String> {
+    if let Some(title) = book_title {
+        if title.len() > MAX_BOOK_TITLE_LEN {
+            return Err(format!(
+                "book title must be at most {MAX_BOOK_TITLE_LEN} characters"
+            ));
+        }
+    }
+    if let Some(description) = book_description {
+        if description.len() > MAX_BOOK_DESCRIPTION_LEN {
+            return Err(format!(
+                "book description must be at most {MAX_BOOK_DESCRIPTION_LEN} characters"
+            ));
+        }
+    }
+    if let Some(ml) = water_ml {
+        if *ml > MAX_WATER_ML {
+            return Err(format!("water intake must be at most {MAX_WATER_ML} ml"));
+        }
+    }
+    Ok(())
+}
+
 pub fn heatmap_completion_rate(avoided: u32, _slipped: u32, total: u32) -> f64 {
     if total == 0 {
         return 0.0;
@@ -285,6 +316,31 @@ mod tests {
         assert!(is_reminder_due_now(&routine, due, 5));
         assert!(!is_reminder_due_now(&routine, early, 5));
         assert!(!is_reminder_due_now(&routine, late, 5));
+    }
+
+    #[test]
+    fn daily_log_validation_rejects_oversized_fields() {
+        let long_title = "x".repeat(MAX_BOOK_TITLE_LEN + 1);
+        let err = validate_daily_log_fields(&Some(long_title), &None, &None).unwrap_err();
+        assert!(err.contains("book title"));
+
+        let long_desc = "x".repeat(MAX_BOOK_DESCRIPTION_LEN + 1);
+        let err = validate_daily_log_fields(&None, &Some(long_desc), &None).unwrap_err();
+        assert!(err.contains("book description"));
+
+        let err = validate_daily_log_fields(&None, &None, &Some(MAX_WATER_ML + 1)).unwrap_err();
+        assert!(err.contains("water intake"));
+    }
+
+    #[test]
+    fn daily_log_validation_accepts_empty_and_valid_values() {
+        assert!(validate_daily_log_fields(&None, &None, &None).is_ok());
+        assert!(validate_daily_log_fields(
+            &Some("Atomic Habits".into()),
+            &Some("Chapter on cues".into()),
+            &Some(2500),
+        )
+        .is_ok());
     }
 
     #[test]

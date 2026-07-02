@@ -8,12 +8,12 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::models::{
-    DayLog, Habit, HabitEntry, HabitStatus, HabitStreak, HeatmapCell, Routine, Session, StatsState,
-    TodayState, User,
+    DailyLog, DayLog, Habit, HabitEntry, HabitStatus, HabitStreak, HeatmapCell, Routine, Session,
+    StatsState, TodayState, User,
 };
 use crate::logic::{
     calculate_current_streak, calculate_habit_streaks, can_edit_day, heatmap_completion_rate,
-    is_routine_active_today, progress_percentage,
+    is_routine_active_today, progress_percentage, validate_daily_log_fields,
 };
 
 struct HabitRecord {
@@ -135,6 +135,17 @@ impl DatabaseState {
                 date TEXT NOT NULL,
                 fired_at TEXT NOT NULL,
                 PRIMARY KEY (user_id, routine_id, date)
+            );
+
+            CREATE TABLE IF NOT EXISTS daily_logs (
+                user_id TEXT NOT NULL,
+                date TEXT NOT NULL,
+                trading_profit REAL,
+                book_title TEXT,
+                book_description TEXT,
+                water_ml INTEGER,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (user_id, date)
             );
             "#,
         )
@@ -475,6 +486,8 @@ impl DatabaseState {
         let habit_ids: Vec<String> = active_habits.iter().map(|h| h.id.clone()).collect();
         let current_streak = calculate_current_streak(&logs, &habit_ids, date_naive);
 
+        let daily_log = self.get_daily_log(user_id, date).await?;
+
         Ok(TodayState {
             date: date.to_string(),
             locked,
@@ -482,7 +495,79 @@ impl DatabaseState {
             entries,
             current_streak,
             routines,
+            daily_log,
         })
+    }
+
+    pub async fn get_daily_log(&self, user_id: &str, date: &str) -> DbResult<DailyLog> {
+        let conn = self.connection()?;
+        let mut rows = conn
+            .query(
+                "SELECT trading_profit, book_title, book_description, water_ml
+                 FROM daily_logs WHERE user_id = ? AND date = ?",
+                (user_id, date),
+            )
+            .await?;
+        if let Some(row) = rows.next().await? {
+            let water_ml: Option<i64> = row.get(3)?;
+            return Ok(DailyLog {
+                trading_profit: row.get(0)?,
+                book_title: row.get(1)?,
+                book_description: row.get(2)?,
+                water_ml: water_ml.map(|value| value as u32),
+            });
+        }
+        Ok(DailyLog::default())
+    }
+
+    pub async fn upsert_daily_log(
+        &self,
+        user_id: &str,
+        date: &str,
+        daily_log: &DailyLog,
+    ) -> DbResult<TodayState> {
+        validate_daily_log_fields(
+            &daily_log.book_title,
+            &daily_log.book_description,
+            &daily_log.water_ml,
+        )
+        .map_err(DbError::InvalidInput)?;
+
+        let date_naive = NaiveDate::parse_from_str(date, "%Y-%m-%d")
+            .map_err(|_| DbError::InvalidInput("invalid date".into()))?;
+        let today = Utc::now().date_naive();
+        let locked = self.is_day_locked(user_id, date).await?;
+        if !can_edit_day(locked, date_naive, today) {
+            if locked {
+                return Err(DbError::DayLocked);
+            }
+            return Err(DbError::InvalidInput("cannot edit future days".into()));
+        }
+
+        let conn = self.connection()?;
+        let updated_at = Utc::now().to_rfc3339();
+        let water_ml = daily_log.water_ml.map(|value| value as i64);
+        conn.execute(
+            "INSERT INTO daily_logs (user_id, date, trading_profit, book_title, book_description, water_ml, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(user_id, date) DO UPDATE SET
+               trading_profit = excluded.trading_profit,
+               book_title = excluded.book_title,
+               book_description = excluded.book_description,
+               water_ml = excluded.water_ml,
+               updated_at = excluded.updated_at",
+            (
+                user_id,
+                date,
+                daily_log.trading_profit,
+                daily_log.book_title.as_deref(),
+                daily_log.book_description.as_deref(),
+                water_ml,
+                updated_at.as_str(),
+            ),
+        )
+        .await?;
+        self.get_today_state(user_id, date).await
     }
 
     pub async fn set_habit_status(

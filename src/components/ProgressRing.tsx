@@ -1,10 +1,10 @@
 import { motion, useReducedMotion } from "motion/react";
 
 interface ProgressRingProps {
-  value: number;
+  label?: string;
   size?: number;
   stroke?: number;
-  label?: string;
+  value: number;
 }
 
 export function ProgressRing({
@@ -21,35 +21,36 @@ export function ProgressRing({
 
   return (
     <div className="relative inline-flex items-center justify-center">
-      <svg width={size} height={size} className="-rotate-90">
+      <svg aria-hidden className="-rotate-90" height={size} width={size}>
+        <title>{label ? `${label} progress` : "Progress"}</title>
         <circle
           cx={size / 2}
           cy={size / 2}
-          r={radius}
           fill="none"
+          r={radius}
           stroke="rgb(255 255 255 / 0.08)"
           strokeWidth={stroke}
         />
         <motion.circle
+          animate={{ strokeDashoffset: offset }}
           cx={size / 2}
           cy={size / 2}
-          r={radius}
           fill="none"
-          stroke="var(--color-accent)"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
           initial={reduce ? false : { strokeDashoffset: circumference }}
-          animate={{ strokeDashoffset: offset }}
+          r={radius}
+          stroke="var(--color-accent)"
+          strokeDasharray={circumference}
+          strokeLinecap="round"
+          strokeWidth={stroke}
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-3xl font-semibold tracking-tight">
+        <span className="font-semibold text-3xl tracking-tight">
           {Math.round(clamped)}%
         </span>
         {label ? (
-          <span className="mt-1 text-xs uppercase tracking-[0.18em] text-text-muted">
+          <span className="mt-1 text-text-muted text-xs uppercase tracking-[0.18em]">
             {label}
           </span>
         ) : null}

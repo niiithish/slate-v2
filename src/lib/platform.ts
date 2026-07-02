@@ -5,7 +5,9 @@ export function isTauriRuntime() {
 }
 
 export function isMobileUserAgent() {
-  if (typeof navigator === "undefined") return false;
+  if (typeof navigator === "undefined") {
+    return false;
+  }
   const ua = navigator.userAgent.toLowerCase();
   return ua.includes("android") || ua.includes("iphone") || ua.includes("ipad");
 }

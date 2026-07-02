@@ -1,24 +1,30 @@
-import { useEffect, useState } from "react";
-import { ArrowsClockwise, Bell, DownloadSimple, Power, SignOut } from "@phosphor-icons/react";
+import {
+  ArrowsClockwise,
+  Bell,
+  DownloadSimple,
+  Power,
+  SignOut,
+} from "@phosphor-icons/react";
 import type { Update } from "@tauri-apps/plugin-updater";
+import { useEffect, useState } from "react";
 import { useConfirm } from "../components/ConfirmDialog";
 import * as api from "../lib/api";
-import { getAutostartEnabled, setAutostartEnabled } from "../lib/autostart";
 import { clearSession } from "../lib/auth";
+import { getAutostartEnabled, setAutostartEnabled } from "../lib/autostart";
 import { useDesktopShell } from "../lib/platform";
+import type { User } from "../lib/types";
 import {
   checkForUpdate,
   installUpdate,
   readAppVersion,
-  updatesSupported,
   type UpdateState,
+  updatesSupported,
 } from "../lib/updates";
-import type { User } from "../lib/types";
 
 interface SettingsPageProps {
+  onLogout: () => void;
   token: string;
   user: User;
-  onLogout: () => void;
 }
 
 export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
@@ -38,7 +44,9 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
   const canUpdate = updatesSupported();
 
   useEffect(() => {
-    if (!desktop) return;
+    if (!desktop) {
+      return;
+    }
     getAutostartEnabled()
       .then(setAutostart)
       .catch(() => setAutostart(false))
@@ -46,7 +54,9 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
   }, [desktop]);
 
   useEffect(() => {
-    if (!canUpdate) return;
+    if (!canUpdate) {
+      return;
+    }
     readAppVersion().then((version) => {
       setAppVersion(version);
       setUpdateState((prev) => ({ ...prev, currentVersion: version }));
@@ -62,13 +72,19 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
       .catch(() => setHealth("Health check failed"));
     api
       .getReminderSchedule(token)
-      .then((items) => setReminders(items.map((item) => `${item.title} at ${item.fire_at}`)))
+      .then((items) =>
+        setReminders(items.map((item) => `${item.title} at ${item.fire_at}`))
+      )
       .catch(() => setReminders([]));
   }, [token]);
 
   async function handleCheckUpdate() {
     setUpdateBusy(true);
-    setUpdateState((prev) => ({ ...prev, phase: "checking", message: undefined }));
+    setUpdateState((prev) => ({
+      ...prev,
+      phase: "checking",
+      message: undefined,
+    }));
     setPendingUpdate(null);
 
     try {
@@ -81,7 +97,9 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
   }
 
   async function handleInstallUpdate() {
-    if (!pendingUpdate) return;
+    if (!pendingUpdate) {
+      return;
+    }
     setUpdateBusy(true);
     setUpdateState((prev) => ({
       ...prev,
@@ -129,33 +147,36 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
     <div className="space-y-6 px-5 py-6 pb-28">
       <header>
         <p className="text-sm text-text-muted">Settings</p>
-        <h2 className="mt-1 text-2xl font-semibold tracking-tight">Account</h2>
+        <h2 className="mt-1 font-semibold text-2xl tracking-tight">Account</h2>
       </header>
 
       <section className="glass-panel rounded-2xl p-5">
         <p className="text-sm text-text-muted">Signed in as</p>
-        <p className="mt-1 text-lg font-medium">{user.display_name}</p>
+        <p className="mt-1 font-medium text-lg">{user.display_name}</p>
         <p className="text-sm text-text-secondary">{user.email}</p>
-        <p className="mt-4 text-xs text-text-muted">{health}</p>
+        <p className="mt-4 text-text-muted text-xs">{health}</p>
       </section>
 
       {canUpdate ? (
         <section className="glass-panel rounded-2xl p-5">
-          <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-            <ArrowsClockwise size={18} className="text-accent" />
+          <div className="mb-3 flex items-center gap-2 font-medium text-sm">
+            <ArrowsClockwise className="text-accent" size={18} />
             App updates
           </div>
           <p className="text-sm text-text-secondary">
-            Installed version <span className="font-medium text-text-primary">{appVersion}</span>
+            Installed version{" "}
+            <span className="font-medium text-text-primary">{appVersion}</span>
           </p>
-          <p className="mt-2 text-xs text-text-muted">
+          <p className="mt-2 text-text-muted text-xs">
             Checks GitHub releases when you tap the button below.
           </p>
 
           {updateState.message ? (
             <p
               className={`mt-3 text-sm ${
-                updateState.phase === "error" ? "text-red-400" : "text-text-secondary"
+                updateState.phase === "error"
+                  ? "text-red-400"
+                  : "text-text-secondary"
               }`}
             >
               {updateState.message}
@@ -163,10 +184,13 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
           ) : null}
 
           {updateState.notes ? (
-            <p className="mt-2 text-xs leading-relaxed text-text-muted">{updateState.notes}</p>
+            <p className="mt-2 text-text-muted text-xs leading-relaxed">
+              {updateState.notes}
+            </p>
           ) : null}
 
-          {updateState.phase === "downloading" && updateState.progress !== undefined ? (
+          {updateState.phase === "downloading" &&
+          updateState.progress !== undefined ? (
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-3">
               <div
                 className="h-full rounded-full bg-accent transition-all"
@@ -177,21 +201,26 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
 
           <div className="mt-4 flex gap-2">
             <button
-              type="button"
+              className="focus-ring flex flex-1 items-center justify-center gap-2 rounded-xl bg-surface-2 px-4 py-2.5 font-medium text-sm transition hover:bg-surface-3 active:scale-[0.98] disabled:opacity-50"
               disabled={updateBusy}
               onClick={handleCheckUpdate}
-              className="focus-ring flex flex-1 items-center justify-center gap-2 rounded-xl bg-surface-2 px-4 py-2.5 text-sm font-medium transition hover:bg-surface-3 active:scale-[0.98] disabled:opacity-50"
+              type="button"
             >
-              <ArrowsClockwise size={16} className={updateBusy ? "animate-spin" : ""} />
-              {updateState.phase === "checking" ? "Checking…" : "Check for updates"}
+              <ArrowsClockwise
+                className={updateBusy ? "animate-spin" : ""}
+                size={16}
+              />
+              {updateState.phase === "checking"
+                ? "Checking…"
+                : "Check for updates"}
             </button>
 
             {pendingUpdate ? (
               <button
-                type="button"
+                className="focus-ring flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 font-semibold text-black text-sm transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
                 disabled={updateBusy}
                 onClick={handleInstallUpdate}
-                className="focus-ring flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-black transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
+                type="button"
               >
                 <DownloadSimple size={16} weight="bold" />
                 Install v{pendingUpdate.version}
@@ -203,21 +232,22 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
 
       {desktop ? (
         <section className="glass-panel rounded-2xl p-5">
-          <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-            <Power size={18} className="text-accent" />
+          <div className="mb-3 flex items-center gap-2 font-medium text-sm">
+            <Power className="text-accent" size={18} />
             Desktop
           </div>
           <label className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-medium">Start on boot</p>
-              <p className="mt-1 text-xs text-text-muted">
+              <p className="font-medium text-sm">Start on boot</p>
+              <p className="mt-1 text-text-muted text-xs">
                 Launch Slate in the background when you log in.
               </p>
             </div>
             <button
-              type="button"
-              role="switch"
               aria-checked={autostart}
+              className={`focus-ring relative h-7 w-12 shrink-0 rounded-full transition ${
+                autostart ? "bg-accent" : "bg-surface-3"
+              } ${autostartLoading ? "opacity-60" : ""}`}
               disabled={autostartLoading}
               onClick={async () => {
                 const next = !autostart;
@@ -231,9 +261,8 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
                   setAutostartLoading(false);
                 }
               }}
-              className={`focus-ring relative h-7 w-12 shrink-0 rounded-full transition ${
-                autostart ? "bg-accent" : "bg-surface-3"
-              } ${autostartLoading ? "opacity-60" : ""}`}
+              role="switch"
+              type="button"
             >
               <span
                 className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition ${
@@ -242,16 +271,16 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
               />
             </button>
           </label>
-          <p className="mt-4 text-xs leading-relaxed text-text-muted">
-            Closing the window keeps Slate running in the system tray so reminders still fire.
-            Right-click the tray icon to quit completely.
+          <p className="mt-4 text-text-muted text-xs leading-relaxed">
+            Closing the window keeps Slate running in the system tray so
+            reminders still fire. Right-click the tray icon to quit completely.
           </p>
         </section>
       ) : null}
 
       <section className="glass-panel rounded-2xl p-5">
-        <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-          <Bell size={18} className="text-accent" />
+        <div className="mb-3 flex items-center gap-2 font-medium text-sm">
+          <Bell className="text-accent" size={18} />
           Upcoming reminders
         </div>
         {reminders.length === 0 ? (
@@ -259,7 +288,7 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
         ) : (
           <ul className="space-y-2 text-sm text-text-secondary">
             {reminders.map((item) => (
-              <li key={item} className="rounded-xl bg-surface-2 px-3 py-2">
+              <li className="rounded-xl bg-surface-2 px-3 py-2" key={item}>
                 {item}
               </li>
             ))}
@@ -268,9 +297,9 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
       </section>
 
       <button
-        type="button"
-        onClick={handleLogout}
         className="focus-ring flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text-primary transition hover:bg-surface-3 active:scale-[0.98]"
+        onClick={handleLogout}
+        type="button"
       >
         <SignOut size={18} />
         Sign out

@@ -3,6 +3,8 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { isTauriRuntime } from "./platform";
 
+const ERROR_PREFIX_RE = /^Error:\s*/i;
+
 export type UpdatePhase =
   | "idle"
   | "checking"
@@ -13,17 +15,19 @@ export type UpdatePhase =
   | "error";
 
 export interface UpdateState {
-  phase: UpdatePhase;
-  currentVersion: string;
   availableVersion?: string;
-  notes?: string;
-  progress?: number;
+  currentVersion: string;
   message?: string;
+  notes?: string;
+  phase: UpdatePhase;
+  progress?: number;
 }
 
 export async function readAppVersion(): Promise<string> {
-  if (!isTauriRuntime()) return "web";
-  return getVersion();
+  if (!isTauriRuntime()) {
+    return "web";
+  }
+  return await getVersion();
 }
 
 export function updatesSupported(): boolean {
@@ -71,7 +75,7 @@ export async function checkForUpdate(): Promise<{
 
 export async function installUpdate(
   update: Update,
-  onProgress: (progress: number | undefined) => void,
+  onProgress: (progress: number | undefined) => void
 ): Promise<UpdateState> {
   const currentVersion = await readAppVersion();
   let downloaded = 0;
@@ -89,11 +93,13 @@ export async function installUpdate(
           onProgress(
             contentLength && contentLength > 0
               ? Math.min(100, Math.round((downloaded / contentLength) * 100))
-              : undefined,
+              : undefined
           );
           break;
         case "Finished":
           onProgress(100);
+          break;
+        default:
           break;
       }
     });
@@ -120,8 +126,11 @@ function formatUpdateError(err: unknown): string {
   if (raw.includes("404") || raw.toLowerCase().includes("not found")) {
     return "No release found yet. Publish a GitHub release first.";
   }
-  if (raw.toLowerCase().includes("network") || raw.toLowerCase().includes("fetch")) {
+  if (
+    raw.toLowerCase().includes("network") ||
+    raw.toLowerCase().includes("fetch")
+  ) {
     return "Couldn't reach GitHub. Check your connection and try again.";
   }
-  return raw.replace(/^Error:\s*/i, "");
+  return raw.replace(ERROR_PREFIX_RE, "");
 }

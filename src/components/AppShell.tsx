@@ -1,6 +1,6 @@
 import clsx from "clsx";
-import { TitleBar } from "./TitleBar";
 import { useDesktopShell } from "../lib/platform";
+import { TitleBar } from "./TitleBar";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -15,7 +15,8 @@ export function AppShell({ children }: AppShellProps) {
       <div
         className={clsx(
           "flex min-h-0 flex-1 flex-col",
-          !desktop && "pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
+          !desktop &&
+            "pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
         )}
       >
         {children}

@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "./components/AppShell";
 import { BottomNav, type TabKey } from "./components/BottomNav";
-import { clearSession, getStoredUser, getToken } from "./lib/auth";
 import * as api from "./lib/api";
+import { clearSession, getStoredUser, getToken } from "./lib/auth";
+import type { Session, User } from "./lib/types";
 import { LoginPage } from "./pages/LoginPage";
 import { ManagePage } from "./pages/ManagePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { StatsPage } from "./pages/StatsPage";
 import { TodayPage } from "./pages/TodayPage";
-import type { Session, User } from "./lib/types";
 
 function App() {
   const [tab, setTab] = useState<TabKey>("today");
@@ -16,7 +16,9 @@ function App() {
   const [user, setUser] = useState<User | null>(getStoredUser());
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      return;
+    }
     api
       .getMe(token)
       .then(setUser)
@@ -28,15 +30,20 @@ function App() {
   }, [token]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      return;
+    }
     api.syncReminderSchedules(token).catch(() => undefined);
-    const timer = window.setInterval(() => {
-      api.syncReminderSchedules(token).catch(() => undefined);
-    }, 60 * 60 * 1000);
+    const timer = window.setInterval(
+      () => {
+        api.syncReminderSchedules(token).catch(() => undefined);
+      },
+      60 * 60 * 1000
+    );
     return () => window.clearInterval(timer);
   }, [token]);
 
-  if (!token || !user) {
+  if (!(token && user)) {
     return (
       <AppShell>
         <LoginPage
@@ -57,12 +64,12 @@ function App() {
         {tab === "manage" ? <ManagePage token={token} /> : null}
         {tab === "settings" ? (
           <SettingsPage
-            token={token}
-            user={user}
             onLogout={() => {
               setToken(null);
               setUser(null);
             }}
+            token={token}
+            user={user}
           />
         ) : null}
       </main>

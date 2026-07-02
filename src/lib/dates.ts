@@ -42,7 +42,11 @@ export function formatCompactDate(date: string): string {
   });
 }
 
-export function parseDate(date: string): { year: number; month: number; day: number } {
+export function parseDate(date: string): {
+  year: number;
+  month: number;
+  day: number;
+} {
   const [year, month, day] = date.split("-").map(Number);
   return { year, month, day };
 }
@@ -51,7 +55,11 @@ export function toDateString(year: number, month: number, day: number): string {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-export function addMonths(year: number, month: number, delta: number): { year: number; month: number } {
+export function addMonths(
+  year: number,
+  month: number,
+  delta: number
+): { year: number; month: number } {
   const date = new Date(year, month - 1 + delta, 1);
   return { year: date.getFullYear(), month: date.getMonth() + 1 };
 }
@@ -73,7 +81,11 @@ export function getMonthGrid(year: number, month: number): CalendarCell[] {
     if (dayNumber < 1) {
       const prev = new Date(year, month - 1, dayNumber);
       cells.push({
-        date: toDateString(prev.getFullYear(), prev.getMonth() + 1, prev.getDate()),
+        date: toDateString(
+          prev.getFullYear(),
+          prev.getMonth() + 1,
+          prev.getDate()
+        ),
         inMonth: false,
       });
       continue;
@@ -81,7 +93,11 @@ export function getMonthGrid(year: number, month: number): CalendarCell[] {
     if (dayNumber > daysInMonth) {
       const next = new Date(year, month - 1, dayNumber);
       cells.push({
-        date: toDateString(next.getFullYear(), next.getMonth() + 1, next.getDate()),
+        date: toDateString(
+          next.getFullYear(),
+          next.getMonth() + 1,
+          next.getDate()
+        ),
         inMonth: false,
       });
       continue;

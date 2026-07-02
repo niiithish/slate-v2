@@ -1,27 +1,4 @@
 {
-  "name": "slate",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "packageManager": "bun@1.3.14",
-  "scripts": {
-    "dev": "vite",
-    "dev:web": "vite",
-    "dev:desktop": "tauri dev",
-    "build": "tsc && vite build",
-    "build:frontend": "vite build",
-    "check": "tsc --noEmit",
-    "preview": "vite preview",
-    "tauri": "tauri",
-    "test:logic": "cd src-tauri && cargo test --lib",
-    "test:logic:all": "cd src-tauri && cargo test",
-    "test:frontend": "tsc --noEmit",
-    "install:fast": "FAST=1 ./scripts/install-opt.sh",
-    "install:reuse": "SKIP_BUILD=1 ./scripts/install-opt.sh",
-    "clean:bloat": "./scripts/clean-dev-bloat.sh",
-    "build:android": "bun run tauri android build",
-    "export:apk": "bash scripts/export-apk.sh"
-  },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",
     "@fontsource-variable/geist-mono": "^5.2.8",
@@ -39,11 +16,37 @@
     "tailwindcss": "^4.3.2"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.16",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
     "typescript": "~5.8.3",
+    "ultracite": "7.8.3",
     "vite": "^7.0.4"
-  }
+  },
+  "name": "slate",
+  "scripts": {
+    "dev": "vite",
+    "dev:web": "vite",
+    "dev:desktop": "tauri dev",
+    "build": "tsc && vite build",
+    "build:frontend": "vite build",
+    "check": "ultracite check",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "test:logic": "cd src-tauri && cargo test --lib",
+    "test:logic:all": "cd src-tauri && cargo test",
+    "test:frontend": "tsc --noEmit",
+    "install:fast": "FAST=1 ./scripts/install-opt.sh",
+    "install:reuse": "SKIP_BUILD=1 ./scripts/install-opt.sh",
+    "clean:bloat": "./scripts/clean-dev-bloat.sh",
+    "build:android": "bun run tauri android build",
+    "export:apk": "bash scripts/export-apk.sh",
+    "fix": "ultracite fix"
+  },
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "bun@1.3.14"
 }

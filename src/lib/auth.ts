@@ -29,7 +29,9 @@ function isUser(value: unknown): value is User {
 
 export function getStoredUser(): User | null {
   const raw = localStorage.getItem(USER_KEY);
-  if (!raw) return null;
+  if (!raw) {
+    return null;
+  }
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!isUser(parsed)) {

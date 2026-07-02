@@ -15,8 +15,16 @@ export function healthCheck() {
   return invoke<HealthResponse>("health_check");
 }
 
-export function register(email: string, password: string, display_name: string) {
-  return invoke<Session>("register", { email, password, displayName: display_name });
+export function register(
+  email: string,
+  password: string,
+  display_name: string
+) {
+  return invoke<Session>("register", {
+    email,
+    password,
+    displayName: display_name,
+  });
 }
 
 export function login(email: string, password: string) {
@@ -35,10 +43,7 @@ export function listRoutines(token: string) {
   return invoke<Routine[]>("list_routines", { token });
 }
 
-export function createRoutine(
-  token: string,
-  payload: Omit<Routine, "id">,
-) {
+export function createRoutine(token: string, payload: Omit<Routine, "id">) {
   return invoke<Routine>("create_routine", {
     token,
     title: payload.title,
@@ -82,7 +87,7 @@ export function setHabitStatus(
   token: string,
   habit_id: string,
   date: string,
-  status: HabitStatus,
+  status: HabitStatus
 ) {
   return invoke<TodayState>("set_habit_status", {
     token,
@@ -96,8 +101,16 @@ export function lockDay(token: string, date: string) {
   return invoke<TodayState>("lock_day", { token, date });
 }
 
-export function updateDailyLog(token: string, date: string, daily_log: DailyLog) {
-  return invoke<TodayState>("update_daily_log", { token, date, dailyLog: daily_log });
+export function updateDailyLog(
+  token: string,
+  date: string,
+  daily_log: DailyLog
+) {
+  return invoke<TodayState>("update_daily_log", {
+    token,
+    date,
+    dailyLog: daily_log,
+  });
 }
 
 export function getStats(token: string, weeks?: number) {
@@ -107,13 +120,13 @@ export function getStats(token: string, weeks?: number) {
 export function getReminderSchedule(token: string) {
   return invoke<Array<{ routine_id: string; title: string; fire_at: string }>>(
     "get_reminder_schedule",
-    { token },
+    { token }
   );
 }
 
 export function syncReminderSchedules(token: string) {
   return invoke<Array<{ routine_id: string; title: string; fire_at: string }>>(
     "sync_reminder_schedules",
-    { token },
+    { token }
   );
 }

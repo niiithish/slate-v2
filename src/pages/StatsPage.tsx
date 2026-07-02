@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { Fire, TrendUp } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
 import { Heatmap } from "../components/Heatmap";
 import * as api from "../lib/api";
 import type { StatsState } from "../lib/types";
@@ -20,7 +20,7 @@ export function StatsPage({ token }: StatsPageProps) {
   }, [token]);
 
   if (error) {
-    return <div className="px-5 py-6 text-sm text-danger">{error}</div>;
+    return <div className="px-5 py-6 text-danger text-sm">{error}</div>;
   }
 
   if (!stats) {
@@ -36,7 +36,9 @@ export function StatsPage({ token }: StatsPageProps) {
     <div className="space-y-6 px-5 py-6 pb-28">
       <header>
         <p className="text-sm text-text-muted">Stats</p>
-        <h2 className="mt-1 text-2xl font-semibold tracking-tight">Your momentum</h2>
+        <h2 className="mt-1 font-semibold text-2xl tracking-tight">
+          Your momentum
+        </h2>
       </header>
 
       <section className="grid grid-cols-3 gap-3">
@@ -45,10 +47,10 @@ export function StatsPage({ token }: StatsPageProps) {
           { label: "Slipped", value: stats.total_slipped, icon: Fire },
           { label: "Locked days", value: stats.days_locked, icon: Fire },
         ].map(({ label, value, icon: Icon }) => (
-          <div key={label} className="glass-panel rounded-2xl p-4">
-            <Icon size={18} className="text-accent" />
-            <p className="mt-3 text-2xl font-semibold">{value}</p>
-            <p className="mt-1 text-xs text-text-muted">{label}</p>
+          <div className="glass-panel rounded-2xl p-4" key={label}>
+            <Icon className="text-accent" size={18} />
+            <p className="mt-3 font-semibold text-2xl">{value}</p>
+            <p className="mt-1 text-text-muted text-xs">{label}</p>
           </div>
         ))}
       </section>
@@ -58,27 +60,29 @@ export function StatsPage({ token }: StatsPageProps) {
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-text-secondary">Streaks by habit</h3>
+        <h3 className="font-medium text-sm text-text-secondary">
+          Streaks by habit
+        </h3>
         {stats.streaks.length === 0 ? (
           <p className="text-sm text-text-muted">No streak data yet.</p>
         ) : (
           <div className="space-y-2">
             {stats.streaks.map((streak) => (
               <div
-                key={streak.habit_id}
                 className="flex items-center justify-between rounded-2xl border border-border bg-surface-2 px-4 py-3"
+                key={streak.habit_id}
               >
                 <div>
                   <p className="font-medium">{streak.title}</p>
-                  <p className="text-xs text-text-muted">
+                  <p className="text-text-muted text-xs">
                     Best {streak.best_streak} days
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xl font-semibold text-accent">
+                  <p className="font-semibold text-accent text-xl">
                     {streak.current_streak}
                   </p>
-                  <p className="text-xs text-text-muted">current</p>
+                  <p className="text-text-muted text-xs">current</p>
                 </div>
               </div>
             ))}

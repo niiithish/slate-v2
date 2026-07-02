@@ -9,8 +9,8 @@ const SIZES = {
 type LogoSize = keyof typeof SIZES;
 
 interface LogoProps {
-  size?: LogoSize;
   className?: string;
+  size?: LogoSize;
   title?: string;
 }
 
@@ -19,16 +19,16 @@ export function Logo({ size = "md", className, title }: LogoProps) {
 
   return (
     <svg
-      width={width}
-      height={height}
-      viewBox="0 0 55 40"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      role={title ? "img" : "presentation"}
       aria-hidden={title ? undefined : true}
       className={clsx("shrink-0", className)}
+      fill="none"
+      height={height}
+      role={title ? "img" : "presentation"}
+      viewBox="0 0 55 40"
+      width={width}
+      xmlns="http://www.w3.org/2000/svg"
     >
-      {title ? <title>{title}</title> : null}
+      <title>{title ?? "Slate"}</title>
       <path
         className="fill-accent"
         d="M23.6322 0.597911C19.9395 1.76672 16.9327 5.48248 10.9192 12.914C3.501 22.0814 -0.208097 26.665 0.00900851 30.5474C0.155095 33.1598 1.30933 35.6108 3.22485 37.3763C6.07159 40 11.9392 40 23.6745 40H24.3275C27.1975 40 29.9133 38.6992 31.7186 36.4682C37.6627 29.1224 40.6348 25.4496 44.4744 24.8957C45.4078 24.7611 46.3555 24.7611 47.2889 24.8957C49.8634 25.2671 52.048 27.0408 55 30.3839C50.2776 21.5248 41.6084 3.83856 31.37 0.597911C28.8514 -0.199304 26.1508 -0.199304 23.6322 0.597911Z"

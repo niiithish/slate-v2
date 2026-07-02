@@ -1,9 +1,9 @@
 export type HabitStatus = "pending" | "avoided" | "slipped";
 
 export interface User {
-  id: string;
-  email: string;
   display_name: string;
+  email: string;
+  id: string;
 }
 
 export interface Session {
@@ -12,72 +12,72 @@ export interface Session {
 }
 
 export interface Routine {
-  id: string;
-  title: string;
-  days: number[];
-  start_time: string;
-  end_time: string;
   color: string;
+  days: number[];
+  end_time: string;
+  id: string;
   reminder_enabled: boolean;
+  start_time: string;
+  title: string;
 }
 
 export interface Habit {
+  active: boolean;
+  color: string;
   id: string;
   title: string;
-  color: string;
-  active: boolean;
 }
 
 export interface HabitEntry {
-  habit_id: string;
-  title: string;
   color: string;
+  habit_id: string;
   status: HabitStatus;
+  title: string;
 }
 
 export interface DailyLog {
-  trading_profit: number | null;
-  book_title: string | null;
   book_description: string | null;
+  book_title: string | null;
+  trading_profit: number | null;
   water_ml: number | null;
 }
 
 export interface TodayState {
-  date: string;
-  locked: boolean;
-  entries: HabitEntry[];
-  progress: number;
   current_streak: number;
-  routines: Routine[];
   daily_log: DailyLog;
+  date: string;
+  entries: HabitEntry[];
+  locked: boolean;
+  progress: number;
+  routines: Routine[];
 }
 
 export interface HeatmapCell {
-  date: string;
   avoided: number;
+  completion_rate: number;
+  date: string;
   slipped: number;
   total: number;
-  completion_rate: number;
 }
 
 export interface HabitStreak {
+  best_streak: number;
+  current_streak: number;
   habit_id: string;
   title: string;
-  current_streak: number;
-  best_streak: number;
 }
 
 export interface StatsState {
+  days_locked: number;
   heatmap: HeatmapCell[];
   streaks: HabitStreak[];
   total_avoided: number;
   total_slipped: number;
-  days_locked: number;
 }
 
 export interface HealthResponse {
-  ok: boolean;
   database: boolean;
+  ok: boolean;
   version: string;
 }
 

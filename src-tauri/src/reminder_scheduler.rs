@@ -1,6 +1,9 @@
 use chrono::Local;
 use tauri::{AppHandle, Manager, Runtime};
 
+#[cfg(mobile)]
+use tauri_plugin_notification::NotificationExt;
+
 use crate::db::{DatabaseState, DbResult};
 use crate::logic::next_reminder_fire_with_offset;
 use crate::models::ReminderPreferences;
@@ -124,7 +127,7 @@ pub async fn sync_scheduled_reminders<R: Runtime>(
                 crate::db::DbError::InvalidInput("invalid daily log reminder time".into())
             })?;
 
-        let Some((title, _body)) = resolve_daily_log_reminder(
+        let Some((title, body)) = resolve_daily_log_reminder(
             db.as_ref(),
             user_id,
             &candidate,
@@ -186,8 +189,7 @@ fn ensure_mobile_notifications_ready<R: Runtime>(
     app: &AppHandle<R>,
 ) -> Result<(), crate::db::DbError> {
     use tauri::plugin::PermissionState;
-    use tauri_plugin_notification::NotificationExt;
-    use tauri_plugin_notification::models::{Channel, Importance, Visibility};
+    use tauri_plugin_notification::{Channel, Importance, Visibility};
 
     let notifications = app.notification();
     if let Ok(state) = notifications.permission_state() {

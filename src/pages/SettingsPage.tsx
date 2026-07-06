@@ -29,6 +29,19 @@ interface SettingsPageProps {
   user: User;
 }
 
+function updateProgressMessage(
+  progress: number | undefined,
+  isAndroidDownload: boolean
+): string {
+  if (progress !== undefined) {
+    return `Downloading… ${progress}%`;
+  }
+  if (isAndroidDownload) {
+    return "Starting install…";
+  }
+  return "Downloading update…";
+}
+
 export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
   const desktop = useDesktopShell();
   const {
@@ -96,35 +109,20 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
     setUpdateBusy(true);
     const isAndroidDownload = Boolean(pendingUpdate.androidDownloadUrl);
 
-    if (isAndroidDownload) {
-      setUpdateState((prev) => ({
-        ...prev,
-        phase: "installing",
-        progress: undefined,
-        message: "Opening download…",
-      }));
-    } else {
-      setUpdateState((prev) => ({
-        ...prev,
-        phase: "downloading",
-        progress: 0,
-        message: "Downloading update…",
-      }));
-    }
+    setUpdateState((prev) => ({
+      ...prev,
+      phase: "downloading",
+      progress: 0,
+      message: "Downloading update…",
+    }));
 
     try {
       const result = await installUpdate(pendingUpdate, (progress) => {
-        if (isAndroidDownload) {
-          return;
-        }
         setUpdateState((prev) => ({
           ...prev,
-          phase: "downloading",
+          phase: progress === undefined ? "installing" : "downloading",
           progress,
-          message:
-            progress === undefined
-              ? "Downloading update…"
-              : `Downloading… ${progress}%`,
+          message: updateProgressMessage(progress, isAndroidDownload),
         }));
       });
       setUpdateState(result);
@@ -178,7 +176,8 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
             <span className="font-medium text-text-primary">{appVersion}</span>
           </p>
           <p className="mt-2 text-text-muted text-xs">
-            Checks GitHub releases when you tap the button below.
+            On Android, updates download in-app and open the system installer.
+            On desktop, updates install automatically.
           </p>
 
           {updateState.message ? (

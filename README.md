@@ -91,13 +91,21 @@ Release APK output:
 slate-android.apk
 ```
 
-Install on phone:
+**Fastest (phone plugged in or on Wi-Fi ADB):** build and install in one step:
+
+```bash
+bun run deploy:android
+```
+
+Manual install:
 
 ```bash
 adb install -r slate-android.apk
 ```
 
-Or copy the APK to your phone and open it (enable "Install unknown apps" for your file manager).
+**Over-the-air:** open Slate → Settings → Check for updates → Install. The app downloads the APK and opens Android's installer (one tap). You still need a GitHub release published first.
+
+For day-to-day dev on your own phone, `deploy:android` skips GitHub entirely.
 
 ## Tests
 

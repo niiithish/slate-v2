@@ -1,6 +1,6 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { listen } from "@tauri-apps/api/event";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { isMobileRuntime, isTauriRuntime } from "./platform";
@@ -106,15 +106,24 @@ export async function installUpdate(
   const currentVersion = await readAppVersion();
 
   if (update.androidDownloadUrl) {
+    let unlisten: (() => void) | undefined;
     try {
-      onProgress(undefined);
-      await openUrl(update.androidDownloadUrl);
+      unlisten = await listen<{ percent?: number }>(
+        "android-update-progress",
+        (event) => {
+          onProgress(event.payload.percent);
+        }
+      );
+      onProgress(0);
+      await invoke("install_android_update", {
+        url: update.androidDownloadUrl,
+      });
       return {
         phase: "available",
         currentVersion,
         availableVersion: update.version,
         message:
-          "Download started. Open the APK from your notifications when it finishes, then allow installs from this source if prompted.",
+          "Update downloaded. Tap Install on the system prompt, then reopen Slate.",
       };
     } catch (err) {
       return {
@@ -123,6 +132,8 @@ export async function installUpdate(
         availableVersion: update.version,
         message: formatUpdateError(err),
       };
+    } finally {
+      unlisten?.();
     }
   }
 

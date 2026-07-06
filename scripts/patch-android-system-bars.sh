@@ -22,4 +22,10 @@ if [[ -d "$TEMPLATE_DIR/res" ]]; then
   cp -R "$TEMPLATE_DIR/res/." "$RES_DIR/"
 fi
 
+MANIFEST="$ROOT/src-tauri/gen/android/app/src/main/AndroidManifest.xml"
+if [[ -f "$MANIFEST" ]] && ! grep -q 'REQUEST_INSTALL_PACKAGES' "$MANIFEST"; then
+  sed -i '/<uses-permission android:name="android.permission.INTERNET" \/>/a\
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />' "$MANIFEST"
+fi
+
 echo "Synced Android system bar templates."

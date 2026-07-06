@@ -8,15 +8,20 @@ import {
   shouldClearPendingAfterAndroidInstall,
 } from "./updates";
 
-const openUrlMock = mock(() => Promise.resolve());
+const installAndroidUpdateMock = mock(() => Promise.resolve());
+const listenMock = mock(() => Promise.resolve(() => undefined));
 const getVersionMock = mock(() => Promise.resolve("0.1.0"));
 
 mock.module("@tauri-apps/api/app", () => ({
   getVersion: getVersionMock,
 }));
 
-mock.module("@tauri-apps/plugin-opener", () => ({
-  openUrl: openUrlMock,
+mock.module("@tauri-apps/api/core", () => ({
+  invoke: installAndroidUpdateMock,
+}));
+
+mock.module("@tauri-apps/api/event", () => ({
+  listen: listenMock,
 }));
 
 mock.module("./platform", () => ({
@@ -62,16 +67,18 @@ describe("mapMobileUpdateResponse", () => {
 
 describe("installUpdate android path", () => {
   beforeEach(() => {
-    openUrlMock.mockClear();
+    installAndroidUpdateMock.mockClear();
+    listenMock.mockClear();
     getVersionMock.mockClear();
   });
 
   afterEach(() => {
-    openUrlMock.mockReset();
+    installAndroidUpdateMock.mockReset();
+    listenMock.mockReset();
     getVersionMock.mockReset();
   });
 
-  test("opens APK URL and returns sideload status message", async () => {
+  test("downloads APK in-app and returns install prompt message", async () => {
     const pending: PendingUpdate = {
       version: "0.2.0",
       androidDownloadUrl:
@@ -83,24 +90,28 @@ describe("installUpdate android path", () => {
       progressCalls.push(progress);
     });
 
-    expect(openUrlMock).toHaveBeenCalledTimes(1);
-    expect(openUrlMock).toHaveBeenCalledWith(pending.androidDownloadUrl);
-    expect(progressCalls).toEqual([undefined]);
+    expect(listenMock).toHaveBeenCalledTimes(1);
+    expect(installAndroidUpdateMock).toHaveBeenCalledTimes(1);
+    expect(installAndroidUpdateMock).toHaveBeenCalledWith(
+      "install_android_update",
+      { url: pending.androidDownloadUrl }
+    );
+    expect(progressCalls).toEqual([0]);
     expect(result.phase).toBe("available");
-    expect(result.message).toContain("Download started");
+    expect(result.message).toContain("Update downloaded");
     expect(result.availableVersion).toBe("0.2.0");
   });
 });
 
 describe("shouldClearPendingAfterAndroidInstall", () => {
-  test("clears pending after successful android openUrl handoff", () => {
+  test("clears pending after successful android install handoff", () => {
     expect(
       shouldClearPendingAfterAndroidInstall(
         {
           phase: "available",
           currentVersion: "0.1.0",
           availableVersion: "0.2.0",
-          message: "Download started.",
+          message: "Update downloaded.",
         },
         true
       )

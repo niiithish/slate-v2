@@ -1,19 +1,41 @@
 package com.nithish.slate
 
+import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.view.View
+import android.util.TypedValue
 import android.view.WindowManager
 import android.webkit.WebView
+import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import java.io.File
 
 class MainActivity : TauriActivity() {
+  companion object {
+    @Volatile private var activeActivity: MainActivity? = null
+
+    @JvmStatic
+    fun installApk(apkPath: String) {
+      val activity =
+        activeActivity
+          ?: throw IllegalStateException("Slate is not ready to install an update yet.")
+      activity.launchApkInstall(apkPath)
+    }
+  }
   // WebView sometimes reports 0 status-bar inset before layout settles.
-  private val minStatusBarInsetPx = 32
+  private fun minStatusBarInsetPx(): Int =
+    TypedValue
+      .applyDimension(
+        TypedValue.COMPLEX_UNIT_DIP,
+        28f,
+        resources.displayMetrics,
+      )
+      .toInt()
 
   private var webViewRef: WebView? = null
 
@@ -24,15 +46,21 @@ class MainActivity : TauriActivity() {
 
   override fun onResume() {
     super.onResume()
+    activeActivity = this
     configureSystemBars()
     webViewRef?.let { ViewCompat.requestApplyInsets(it) }
+  }
+
+  override fun onPause() {
+    activeActivity = null
+    super.onPause()
   }
 
   override fun onWebViewCreate(webView: WebView) {
     webViewRef = webView
     webView.fitsSystemWindows = false
-    webView.clipToPadding = true
-    applyWebViewInsets(webView)
+    webView.clipToPadding = false
+    applySafeAreaInsets(webView)
     webView.post { ViewCompat.requestApplyInsets(webView) }
     val layoutListener =
       object : android.view.ViewTreeObserver.OnGlobalLayoutListener {
@@ -45,7 +73,7 @@ class MainActivity : TauriActivity() {
   }
 
   private fun configureSystemBars() {
-    // SDK 35+ enforces edge-to-edge; insets are applied directly on the WebView.
+    // SDK 35+ enforces edge-to-edge; safe areas are applied in the web layer.
     WindowCompat.setDecorFitsSystemWindows(window, false)
     window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
     window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
@@ -63,27 +91,47 @@ class MainActivity : TauriActivity() {
     controller.isAppearanceLightNavigationBars = false
   }
 
-  private fun applyWebViewInsets(webView: WebView) {
-    ViewCompat.setOnApplyWindowInsetsListener(webView) { view, insets ->
+  private fun applySafeAreaInsets(webView: WebView) {
+    ViewCompat.setOnApplyWindowInsetsListener(webView) { _, insets ->
       val systemBars =
         insets.getInsets(
           WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
         )
-      val top = systemBars.top.coerceAtLeast(minStatusBarInsetPx)
+      val top = systemBars.top.coerceAtLeast(minStatusBarInsetPx())
       val bottom = systemBars.bottom
 
-      // Native padding keeps scroll content out of the transparent status bar on Android 15+.
-      view.setPadding(0, top, 0, bottom)
+      webView.setPadding(0, 0, 0, 0)
+      injectSafeAreaCss(webView, top, bottom)
 
-      val js =
-        """
-        document.documentElement.style.setProperty('--safe-top', '0px');
-        document.documentElement.style.setProperty('--safe-bottom', '0px');
-        """.trimIndent()
-      webView.evaluateJavascript(js, null)
-
-      WindowInsetsCompat.CONSUMED
+      // Pass insets through so Chromium can resolve env(safe-area-inset-*).
+      insets
     }
     ViewCompat.requestApplyInsets(webView)
+  }
+
+  private fun injectSafeAreaCss(webView: WebView, topPx: Int, bottomPx: Int) {
+    val js =
+      """
+      document.documentElement.style.setProperty('--safe-top', '${topPx}px');
+      document.documentElement.style.setProperty('--safe-bottom', '${bottomPx}px');
+      """.trimIndent()
+    webView.evaluateJavascript(js, null)
+  }
+
+  private fun launchApkInstall(apkPath: String) {
+    val apkFile = File(apkPath)
+    if (!apkFile.exists()) {
+      throw IllegalArgumentException("Update file not found.")
+    }
+
+    val uri: Uri =
+      FileProvider.getUriForFile(this, "${applicationId}.fileprovider", apkFile)
+    val intent =
+      Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, "application/vnd.android.package-archive")
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+      }
+    startActivity(intent)
   }
 }

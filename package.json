@@ -45,12 +45,13 @@
     "clean:bloat": "./scripts/clean-dev-bloat.sh",
     "icons": "bash scripts/regenerate-icons.sh",
     "build:android": "bash scripts/build-android.sh",
+    "deploy:android": "bash scripts/deploy-android.sh",
     "build:android:fast": "bun run tauri android build",
     "export:apk": "bash scripts/export-apk.sh",
     "fix": "ultracite fix"
   },
   "type": "module",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "packageManager": "bun@1.3.14"
 }

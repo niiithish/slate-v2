@@ -1,3 +1,4 @@
+pub mod android_install;
 pub mod auth;
 pub mod commands;
 pub mod daily_log_reminders;
@@ -73,6 +74,7 @@ pub fn run() {
             .invoke_handler(tauri::generate_handler![
                 commands::runtime_platform,
                 mobile_updates::check_mobile_update,
+                android_install::install_android_update,
                 commands::health_check,
                 commands::register,
                 commands::login,

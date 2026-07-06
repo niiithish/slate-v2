@@ -84,6 +84,9 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install Android build dependencies
+        run: sudo apt-get update && sudo apt-get install -y librsvg2-bin
+
       - name: Install Android SDK packages
         run: |
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0" "ndk;27.2.12479018"

@@ -15,7 +15,6 @@ struct AndroidUpdateProgress {
 #[cfg(target_os = "android")]
 fn launch_apk_install(apk_path: &str) -> Result<(), String> {
     use jni::objects::JValue;
-    use jni::JNIEnv;
     use ndk_context::android_context;
 
     let ctx = android_context();
@@ -24,13 +23,6 @@ fn launch_apk_install(apk_path: &str) -> Result<(), String> {
     let mut env = vm
         .attach_current_thread()
         .map_err(|error| format!("JNI attach error: {error}"))?;
-
-    call_install_apk(&mut env, apk_path)
-}
-
-#[cfg(target_os = "android")]
-fn call_install_apk(env: &mut JNIEnv<'_>, apk_path: &str) -> Result<(), String> {
-    use jni::objects::JValue;
 
     let class = env
         .find_class("com/nithish/slate/MainActivity")

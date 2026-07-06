@@ -37,10 +37,14 @@ pub fn run() {
 
         let mut builder = tauri::Builder::default()
             .plugin(tauri_plugin_process::init())
-            .plugin(tauri_plugin_updater::Builder::new().build())
             .plugin(tauri_plugin_opener::init())
             .plugin(tauri_plugin_notification::init())
             .manage(state);
+
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        {
+            builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+        }
 
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         {

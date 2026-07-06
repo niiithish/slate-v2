@@ -1,6 +1,6 @@
 [package]
 name = "slate"
-version = "0.1.1"
+version = "0.1.2"
 description = "Personal routine and habit tracker"
 authors = ["nithish"]
 edition = "2021"
@@ -36,12 +36,12 @@ time = "0.3"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 tauri-plugin-process = "2"
-tauri-plugin-updater = "2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 [dev-dependencies]
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+wiremock = "0.6"
 dotenvy = "0.15"
 uuid = { version = "1", features = ["v4"] }
 serde_json = "1"
@@ -49,3 +49,4 @@ tauri = { version = "2", features = ["test"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"
+tauri-plugin-updater = "2"

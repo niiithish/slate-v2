@@ -17,6 +17,7 @@ import {
   installUpdate,
   type PendingUpdate,
   readAppVersion,
+  shouldClearPendingAfterAndroidInstall,
   type UpdateState,
   updatesSupported,
 } from "../lib/updates";
@@ -96,15 +97,29 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
       return;
     }
     setUpdateBusy(true);
-    setUpdateState((prev) => ({
-      ...prev,
-      phase: "downloading",
-      progress: 0,
-      message: "Downloading update…",
-    }));
+    const isAndroidDownload = Boolean(pendingUpdate.androidDownloadUrl);
+
+    if (isAndroidDownload) {
+      setUpdateState((prev) => ({
+        ...prev,
+        phase: "installing",
+        progress: undefined,
+        message: "Opening download…",
+      }));
+    } else {
+      setUpdateState((prev) => ({
+        ...prev,
+        phase: "downloading",
+        progress: 0,
+        message: "Downloading update…",
+      }));
+    }
 
     try {
       const result = await installUpdate(pendingUpdate, (progress) => {
+        if (isAndroidDownload) {
+          return;
+        }
         setUpdateState((prev) => ({
           ...prev,
           phase: "downloading",
@@ -116,6 +131,9 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
         }));
       });
       setUpdateState(result);
+      if (shouldClearPendingAfterAndroidInstall(result, isAndroidDownload)) {
+        setPendingUpdate(null);
+      }
     } finally {
       setUpdateBusy(false);
     }

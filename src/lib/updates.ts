@@ -32,7 +32,7 @@ export interface PendingUpdate {
   version: string;
 }
 
-interface MobileUpdateResponse {
+export interface MobileUpdateResponse {
   androidDownloadUrl?: string;
   availableVersion?: string;
   currentVersion: string;
@@ -179,6 +179,39 @@ export async function installUpdate(
   }
 }
 
+export function mapMobileUpdateResponse(
+  fallbackCurrentVersion: string,
+  result: MobileUpdateResponse
+): { state: UpdateState; pending?: PendingUpdate } {
+  const state: UpdateState = {
+    phase: result.phase,
+    currentVersion: result.currentVersion || fallbackCurrentVersion,
+    availableVersion: result.availableVersion,
+    notes: result.notes,
+    message: result.message,
+  };
+
+  if (result.phase !== "available" || !result.availableVersion) {
+    return { state };
+  }
+
+  return {
+    state,
+    pending: {
+      version: result.availableVersion,
+      notes: result.notes,
+      androidDownloadUrl: result.androidDownloadUrl,
+    },
+  };
+}
+
+export function shouldClearPendingAfterAndroidInstall(
+  result: UpdateState,
+  hadAndroidDownloadUrl: boolean
+): boolean {
+  return hadAndroidDownloadUrl && result.phase !== "error";
+}
+
 async function checkForMobileUpdate(
   currentVersion: string
 ): Promise<{ state: UpdateState; pending?: PendingUpdate }> {
@@ -186,27 +219,7 @@ async function checkForMobileUpdate(
     const result = await invoke<MobileUpdateResponse>("check_mobile_update", {
       currentVersion,
     });
-
-    const state: UpdateState = {
-      phase: result.phase,
-      currentVersion: result.currentVersion,
-      availableVersion: result.availableVersion,
-      notes: result.notes,
-      message: result.message,
-    };
-
-    if (result.phase !== "available" || !result.availableVersion) {
-      return { state };
-    }
-
-    return {
-      state,
-      pending: {
-        version: result.availableVersion,
-        notes: result.notes,
-        androidDownloadUrl: result.androidDownloadUrl,
-      },
-    };
+    return mapMobileUpdateResponse(currentVersion, result);
   } catch (err) {
     return {
       state: {

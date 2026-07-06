@@ -1,12 +1,14 @@
 import { CalendarBlank, Plus, Prohibit, Trash, X } from "@phosphor-icons/react";
 import clsx from "clsx";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { ColorSwatches } from "../components/ColorSwatches";
 import { useConfirm } from "../components/ConfirmDialog";
 import * as api from "../lib/api";
+import { useHabits, useRoutines } from "../lib/queries";
+import { invalidateAfterPlanChange } from "../lib/queryClient";
 import { syncReminders } from "../lib/reminders";
-import { DAY_LABELS, type Habit, type Routine } from "../lib/types";
+import { DAY_LABELS } from "../lib/types";
 
 interface ManagePageProps {
   token: string;
@@ -37,8 +39,10 @@ const inputClass =
 
 export function ManagePage({ token }: ManagePageProps) {
   const [tab, setTab] = useState<PlanTab>("routines");
-  const [routines, setRoutines] = useState<Routine[]>([]);
-  const [habits, setHabits] = useState<Habit[]>([]);
+  const { data: routines = [], isPending: routinesLoading } =
+    useRoutines(token);
+  const { data: habits = [], isPending: habitsLoading } = useHabits(token);
+  const planLoading = routinesLoading || habitsLoading;
   const [addingRoutine, setAddingRoutine] = useState(false);
   const [addingHabit, setAddingHabit] = useState(false);
 
@@ -52,18 +56,9 @@ export function ManagePage({ token }: ManagePageProps) {
   const [saving, setSaving] = useState(false);
   const { confirm, dialog: confirmDialog } = useConfirm();
 
-  const refresh = useCallback(async () => {
-    const [nextRoutines, nextHabits] = await Promise.all([
-      api.listRoutines(token),
-      api.listHabits(token),
-    ]);
-    setRoutines(nextRoutines);
-    setHabits(nextHabits);
-  }, [token]);
-
-  useEffect(() => {
-    refresh().catch(console.error);
-  }, [refresh]);
+  async function refreshPlanData() {
+    await invalidateAfterPlanChange(token);
+  }
 
   function toggleDay(day: number) {
     setSelectedDays((current) =>
@@ -131,7 +126,7 @@ export function ManagePage({ token }: ManagePageProps) {
         reminder_enabled: true,
       });
       resetRoutineForm();
-      await refresh();
+      await refreshPlanData();
       await syncReminders(token);
     } finally {
       setSaving(false);
@@ -146,7 +141,7 @@ export function ManagePage({ token }: ManagePageProps) {
     try {
       await api.createHabit(token, habitTitle.trim(), habitColor);
       resetHabitForm();
-      await refresh();
+      await refreshPlanData();
     } finally {
       setSaving(false);
     }
@@ -201,7 +196,10 @@ export function ManagePage({ token }: ManagePageProps) {
             key="routines"
             transition={{ duration: 0.2 }}
           >
-            {routines.length === 0 && !addingRoutine ? (
+            {planLoading ? (
+              <div className="h-40 animate-pulse rounded-2xl bg-surface-2" />
+            ) : null}
+            {!planLoading && routines.length === 0 && !addingRoutine ? (
               <div className="rounded-xl border border-border border-dashed px-4 py-10 text-center">
                 <CalendarBlank className="mx-auto text-text-muted" size={28} />
                 <p className="mt-3 text-sm text-text-secondary">
@@ -211,7 +209,8 @@ export function ManagePage({ token }: ManagePageProps) {
                   Block out weekly time windows you want to protect.
                 </p>
               </div>
-            ) : (
+            ) : null}
+            {!planLoading && (routines.length > 0 || addingRoutine) ? (
               <ul className="divide-y divide-border rounded-xl border border-border">
                 {routines.map((routine) => (
                   <li className="flex items-stretch gap-0" key={routine.id}>
@@ -240,7 +239,7 @@ export function ManagePage({ token }: ManagePageProps) {
                             variant: "danger",
                             onConfirm: async () => {
                               await api.deleteRoutine(token, routine.id);
-                              await refresh();
+                              await refreshPlanData();
                               await syncReminders(token);
                             },
                           })
@@ -253,7 +252,7 @@ export function ManagePage({ token }: ManagePageProps) {
                   </li>
                 ))}
               </ul>
-            )}
+            ) : null}
 
             <AnimatePresence>
               {addingRoutine ? (
@@ -372,7 +371,10 @@ export function ManagePage({ token }: ManagePageProps) {
             key="habits"
             transition={{ duration: 0.2 }}
           >
-            {habits.length === 0 && !addingHabit ? (
+            {planLoading ? (
+              <div className="h-40 animate-pulse rounded-2xl bg-surface-2" />
+            ) : null}
+            {!planLoading && habits.length === 0 && !addingHabit ? (
               <div className="rounded-xl border border-border border-dashed px-4 py-10 text-center">
                 <Prohibit className="mx-auto text-text-muted" size={28} />
                 <p className="mt-3 text-sm text-text-secondary">
@@ -382,7 +384,8 @@ export function ManagePage({ token }: ManagePageProps) {
                   Add behaviors you want to avoid each day.
                 </p>
               </div>
-            ) : (
+            ) : null}
+            {!planLoading && (habits.length > 0 || addingHabit) ? (
               <ul className="divide-y divide-border rounded-xl border border-border">
                 {habits.map((habit) => (
                   <li
@@ -407,7 +410,7 @@ export function ManagePage({ token }: ManagePageProps) {
                           variant: "danger",
                           onConfirm: async () => {
                             await api.deleteHabit(token, habit.id);
-                            await refresh();
+                            await refreshPlanData();
                           },
                         })
                       }
@@ -418,7 +421,7 @@ export function ManagePage({ token }: ManagePageProps) {
                   </li>
                 ))}
               </ul>
-            )}
+            ) : null}
 
             <AnimatePresence>
               {addingHabit ? (

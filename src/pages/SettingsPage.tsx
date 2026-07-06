@@ -11,6 +11,7 @@ import * as api from "../lib/api";
 import { clearSession } from "../lib/auth";
 import { getAutostartEnabled, setAutostartEnabled } from "../lib/autostart";
 import { useDesktopShell } from "../lib/platform";
+import { formatHealthStatus, useHealth } from "../lib/queries";
 import type { User } from "../lib/types";
 import {
   checkForUpdate,
@@ -30,7 +31,12 @@ interface SettingsPageProps {
 
 export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
   const desktop = useDesktopShell();
-  const [health, setHealth] = useState<string>("checking");
+  const {
+    data: healthResult,
+    isError: healthErrored,
+    isLoading: healthLoading,
+  } = useHealth();
+  const health = formatHealthStatus(healthLoading, healthResult, healthErrored);
   const [autostart, setAutostart] = useState(false);
   const [autostartLoading, setAutostartLoading] = useState(desktop);
   const [appVersion, setAppVersion] = useState("…");
@@ -64,15 +70,6 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
       setUpdateState((prev) => ({ ...prev, currentVersion: version }));
     });
   }, [canUpdate]);
-
-  useEffect(() => {
-    api
-      .healthCheck()
-      .then((result) => {
-        setHealth(result.database ? "Turso connected" : "Database unavailable");
-      })
-      .catch(() => setHealth("Health check failed"));
-  }, []);
 
   async function handleCheckUpdate() {
     setUpdateBusy(true);

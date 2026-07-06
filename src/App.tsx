@@ -3,6 +3,7 @@ import { AppShell } from "./components/AppShell";
 import { BottomNav, type TabKey } from "./components/BottomNav";
 import * as api from "./lib/api";
 import { clearSession, getStoredUser, getToken } from "./lib/auth";
+import { invalidateSyncedData, queryClient } from "./lib/queryClient";
 import { syncReminders } from "./lib/reminders";
 import type { Session, User } from "./lib/types";
 import { LoginPage } from "./pages/LoginPage";
@@ -18,6 +19,7 @@ function App() {
 
   useEffect(() => {
     if (!token) {
+      queryClient.clear();
       return;
     }
     api
@@ -25,6 +27,7 @@ function App() {
       .then(setUser)
       .catch(() => {
         clearSession();
+        queryClient.clear();
         setToken(null);
         setUser(null);
       });
@@ -49,6 +52,7 @@ function App() {
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
         refreshReminders();
+        invalidateSyncedData().catch(() => undefined);
       }
     };
 
@@ -75,19 +79,26 @@ function App() {
   return (
     <AppShell>
       <main className="flex-1">
-        {tab === "today" ? <TodayPage token={token} /> : null}
-        {tab === "stats" ? <StatsPage token={token} /> : null}
-        {tab === "manage" ? <ManagePage token={token} /> : null}
-        {tab === "settings" ? (
+        <div className={tab === "today" ? "contents" : "hidden"}>
+          <TodayPage key={token} token={token} />
+        </div>
+        <div className={tab === "stats" ? "contents" : "hidden"}>
+          <StatsPage token={token} />
+        </div>
+        <div className={tab === "manage" ? "contents" : "hidden"}>
+          <ManagePage token={token} />
+        </div>
+        <div className={tab === "settings" ? "contents" : "hidden"}>
           <SettingsPage
             onLogout={() => {
+              queryClient.clear();
               setToken(null);
               setUser(null);
             }}
             token={token}
             user={user}
           />
-        ) : null}
+        </div>
       </main>
       <BottomNav active={tab} onChange={setTab} />
     </AppShell>

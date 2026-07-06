@@ -1,29 +1,19 @@
 import { Fire, TrendUp } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
 import { Heatmap } from "../components/Heatmap";
-import * as api from "../lib/api";
-import type { StatsState } from "../lib/types";
+import { useStats } from "../lib/queries";
 
 interface StatsPageProps {
   token: string;
 }
 
 export function StatsPage({ token }: StatsPageProps) {
-  const [stats, setStats] = useState<StatsState | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api
-      .getStats(token, 12)
-      .then(setStats)
-      .catch((err) => setError(String(err)));
-  }, [token]);
+  const { data: stats, error, isLoading } = useStats(token);
 
   if (error) {
-    return <div className="px-5 py-6 text-danger text-sm">{error}</div>;
+    return <div className="px-5 py-6 text-danger text-sm">{String(error)}</div>;
   }
 
-  if (!stats) {
+  if (isLoading || !stats) {
     return (
       <div className="space-y-4 px-5 py-6">
         <div className="h-28 animate-pulse rounded-2xl bg-surface-2" />

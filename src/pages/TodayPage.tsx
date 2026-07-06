@@ -7,15 +7,18 @@ import {
   LockSimple,
   WarningCircle,
 } from "@phosphor-icons/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { DayNavigator } from "../components/DayNavigator";
 import { FormSheet, sheetInputClass } from "../components/FormSheet";
 import { ProgressRing } from "../components/ProgressRing";
 import * as api from "../lib/api";
 import { isFuture, todayString } from "../lib/dates";
+import { normalizeTodayState, useTodayState } from "../lib/queries";
+import { invalidateAfterTodayChange, queryKeys } from "../lib/queryClient";
 import { syncReminders } from "../lib/reminders";
-import type { DailyLog, TodayState } from "../lib/types";
+import type { DailyLog } from "../lib/types";
 
 interface TodayPageProps {
   token: string;
@@ -55,72 +58,58 @@ function formatWater(value: number | null): string {
   return `${value.toLocaleString()} ml`;
 }
 
+function formatQueryError(err: unknown): string {
+  const message = String(err);
+  if (
+    message.includes("connection abort") ||
+    message.includes("connection error") ||
+    message.includes("os error 103")
+  ) {
+    return "Connection lost. Pull to refresh or try again in a moment.";
+  }
+  return message;
+}
+
 export function TodayPage({ token }: TodayPageProps) {
+  const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(todayString);
-  const [state, setState] = useState<TodayState | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [activeSheet, setActiveSheet] = useState<LogSheet>(null);
   const [draft, setDraft] = useState<DailyLog>(EMPTY_DAILY_LOG);
   const [savingLog, setSavingLog] = useState(false);
 
-  const loadDay = useCallback(
-    async (date: string, showSkeleton = false) => {
-      if (showSkeleton) {
-        setLoading(true);
-      }
-      setError(null);
-      try {
-        const next = await api.getTodayState(token, date);
-        setState({
-          ...next,
-          daily_log: next.daily_log ?? EMPTY_DAILY_LOG,
-        });
-      } catch (err) {
-        const message = String(err);
-        if (
-          message.includes("connection abort") ||
-          message.includes("connection error") ||
-          message.includes("os error 103")
-        ) {
-          setError(
-            "Connection lost. Pull to refresh or try again in a moment."
-          );
-        } else {
-          setError(message);
-        }
-      } finally {
-        setLoading(false);
-      }
-    },
-    [token]
-  );
-
-  useEffect(() => {
-    setSelectedDate(todayString());
-    setState(null);
-    // Reset the day view when the signed-in user changes.
-  }, [token]);
-
-  useEffect(() => {
-    loadDay(selectedDate, state === null).catch(console.error);
-  }, [selectedDate, loadDay, state]);
+  const {
+    data: state,
+    error: queryError,
+    isFetching,
+    isLoading,
+  } = useTodayState(token, selectedDate);
 
   function handleDateChange(date: string) {
-    setLoading(true);
     setSelectedDate(date);
+  }
+
+  function updateTodayCache(
+    next: Awaited<ReturnType<typeof api.getTodayState>>
+  ) {
+    queryClient.setQueryData(
+      queryKeys.today(token, selectedDate),
+      normalizeTodayState(next)
+    );
   }
 
   async function updateStatus(habitId: string, status: "avoided" | "slipped") {
     if (!state || state.locked || isFuture(selectedDate)) {
       return;
     }
+    setActionError(null);
     try {
       const next = await api.setHabitStatus(token, habitId, state.date, status);
-      setState({ ...next, daily_log: next.daily_log ?? EMPTY_DAILY_LOG });
+      updateTodayCache(next);
+      await invalidateAfterTodayChange(token, selectedDate);
       await syncReminders(token);
     } catch (err) {
-      setError(String(err));
+      setActionError(formatQueryError(err));
     }
   }
 
@@ -144,14 +133,15 @@ export function TodayPage({ token }: TodayPageProps) {
       return;
     }
     setSavingLog(true);
-    setError(null);
+    setActionError(null);
     try {
       const next = await api.updateDailyLog(token, state.date, draft);
-      setState({ ...next, daily_log: next.daily_log ?? EMPTY_DAILY_LOG });
+      updateTodayCache(next);
       setActiveSheet(null);
+      await invalidateAfterTodayChange(token, selectedDate);
       await syncReminders(token);
     } catch (err) {
-      setError(String(err));
+      setActionError(formatQueryError(err));
     } finally {
       setSavingLog(false);
     }
@@ -159,8 +149,11 @@ export function TodayPage({ token }: TodayPageProps) {
 
   const viewingFuture = isFuture(selectedDate);
   const readOnly = viewingFuture || Boolean(state?.locked);
+  const error =
+    actionError ?? (queryError ? formatQueryError(queryError) : null);
+  const loading = isLoading || (isFetching && !state);
 
-  if (loading && !state) {
+  if (isLoading && !state) {
     return (
       <div className="space-y-4 px-5 py-6">
         <div className="h-20 animate-pulse rounded-2xl bg-surface-2" />

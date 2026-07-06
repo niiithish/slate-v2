@@ -231,10 +231,16 @@ async function checkForMobileUpdate(
   }
 }
 
-function formatUpdateError(err: unknown): string {
+export function formatUpdateError(err: unknown): string {
   const raw = String(err);
   if (raw.includes("404") || raw.toLowerCase().includes("not found")) {
     return "No release found yet. Publish a GitHub release first.";
+  }
+  if (
+    raw.toLowerCase().includes("permission denied") ||
+    raw.includes("os error 13")
+  ) {
+    return "Can't update the install folder (often /opt/slate, which is root-owned). Quit Slate, run `bun run install:reuse` from the repo to install under ~/.local/share/slate, then try again.";
   }
   if (
     raw.toLowerCase().includes("network") ||

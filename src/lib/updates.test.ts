@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import {
+  formatUpdateError,
   installUpdate,
   type MobileUpdateResponse,
   mapMobileUpdateResponse,
@@ -117,6 +118,14 @@ describe("shouldClearPendingAfterAndroidInstall", () => {
         true
       )
     ).toBe(false);
+  });
+
+  test("maps permission denied to reinstall guidance", () => {
+    const message = formatUpdateError(
+      'Permission denied (os error 13) at path "/opt/slate/tauri_current_appSDBJxN"'
+    );
+    expect(message).toContain("install:reuse");
+    expect(message).toContain(".local/share/slate");
   });
 
   test("does not clear pending for desktop installs", () => {

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-INSTALL_DIR="/opt/slate"
+INSTALL_DIR="${SLATE_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/slate}"
 ICON_SRC="$ROOT/src-tauri/icons/icon.png"
 
 if [[ "${SKIP_BUILD:-0}" == "1" ]]; then
@@ -41,25 +41,25 @@ if [[ ! -f "$BIN_SRC" ]]; then
   exit 1
 fi
 
-sudo mkdir -p "$INSTALL_DIR"
-sudo install -m 755 "$BIN_SRC" "$INSTALL_DIR/slate"
-sudo install -m 644 "$ICON_SRC" "$INSTALL_DIR/icon.png"
+mkdir -p "$INSTALL_DIR"
+install -m 755 "$BIN_SRC" "$INSTALL_DIR/slate"
+install -m 644 "$ICON_SRC" "$INSTALL_DIR/icon.png"
 
 mkdir -p "$HOME/.config/com.nithish.slate"
 if [[ -f "$ROOT/.env.local" ]]; then
   install -m 600 "$ROOT/.env.local" "$HOME/.config/com.nithish.slate/.env"
 fi
 
-DESKTOP='[Desktop Entry]
+DESKTOP="[Desktop Entry]
 Name=Slate
 Comment=Personal routine and habit tracker
-Exec=/opt/slate/slate
-Icon=/opt/slate/icon.png
+Exec=${INSTALL_DIR}/slate
+Icon=${INSTALL_DIR}/icon.png
 Terminal=false
 Type=Application
 Categories=Utility;Productivity;
 StartupWMClass=slate
-'
+"
 
 install -d "$HOME/.local/share/applications"
 printf '%s\n' "$DESKTOP" > "$HOME/.local/share/applications/slate.desktop"
@@ -70,11 +70,13 @@ if [[ -d "$HOME/Desktop" ]]; then
   chmod +x "$HOME/Desktop/slate.desktop"
 fi
 
-sudo tee /usr/share/applications/slate.desktop > /dev/null <<< "$DESKTOP"
-sudo chmod 644 /usr/share/applications/slate.desktop
-
 update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
-sudo update-desktop-database /usr/share/applications 2>/dev/null || true
 
 echo "Installed Slate to $INSTALL_DIR"
 echo "Menu + desktop shortcut created."
+if [[ -d /opt/slate ]]; then
+  echo ""
+  echo "Note: an older root-owned install exists at /opt/slate."
+  echo "Close Slate and launch from the menu again so in-app updates can replace the binary."
+  echo "Optional cleanup: sudo rm -rf /opt/slate /usr/share/applications/slate.desktop"
+fi

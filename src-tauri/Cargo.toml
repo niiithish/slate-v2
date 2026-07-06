@@ -1,6 +1,6 @@
 [package]
 name = "slate"
-version = "0.1.3"
+version = "0.1.4"
 description = "Personal routine and habit tracker"
 authors = ["nithish"]
 edition = "2021"

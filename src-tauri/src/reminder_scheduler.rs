@@ -15,8 +15,10 @@ use crate::reminders::{
 #[cfg(not(mobile))]
 use crate::reminders::send_notification;
 
+#[cfg(not(mobile))]
 type SchedulerMap = std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<String, tokio::task::JoinHandle<()>>>>;
 
+#[cfg(not(mobile))]
 pub fn scheduler_state<R: Runtime>(app: &AppHandle<R>) -> SchedulerMap {
     if let Some(state) = app.try_state::<SchedulerMap>() {
         return state.inner().clone();
@@ -144,6 +146,9 @@ pub async fn sync_scheduled_reminders<R: Runtime>(
             title: title.clone(),
             fire_at: candidate.fire_at.clone(),
         });
+
+        #[cfg(not(mobile))]
+        let _ = &body;
 
         #[cfg(not(mobile))]
         schedule_desktop_daily_reminder(
@@ -346,6 +351,7 @@ async fn schedule_desktop_daily_reminder<R: Runtime>(
     tasks.lock().await.insert(key, handle);
 }
 
+#[cfg(not(mobile))]
 async fn wait_until(target: chrono::NaiveDateTime) {
     loop {
         let now = Local::now().naive_local();

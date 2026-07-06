@@ -57,17 +57,19 @@ pub fn run() {
         }
 
         builder
-            .setup(|app| {
-                #[cfg(not(any(target_os = "android", target_os = "ios")))]
-                desktop::setup_desktop(app)?;
-
+            .setup(|_app| {
                 #[cfg(not(mobile))]
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.set_fullscreen(false);
-                    let _ = window.unmaximize();
-                    let _ = window.set_resizable(false);
-                    let _ = window.set_size(LogicalSize::new(360.0, 620.0));
-                    let _ = window.center();
+                {
+                    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                    desktop::setup_desktop(_app)?;
+
+                    if let Some(window) = _app.get_webview_window("main") {
+                        let _ = window.set_fullscreen(false);
+                        let _ = window.unmaximize();
+                        let _ = window.set_resizable(false);
+                        let _ = window.set_size(LogicalSize::new(360.0, 620.0));
+                        let _ = window.center();
+                    }
                 }
                 Ok(())
             })

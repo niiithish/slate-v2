@@ -1,6 +1,7 @@
 import { Bell } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import * as api from "../lib/api";
+import { isMobileApp, useDesktopShell } from "../lib/platform";
 import {
   DEFAULT_REMINDER_PREFERENCES,
   formatEveningTime,
@@ -27,9 +28,21 @@ interface ScheduledReminder {
   title: string;
 }
 
+function reminderPlatformHint(desktop: boolean, mobile: boolean): string {
+  if (desktop) {
+    return "Alerts need Slate running in the system tray. Enable Start on boot in Settings so reminders still fire after you close the window.";
+  }
+  if (mobile) {
+    return "Allow notifications when Android asks. Open Slate once after reboot or if alerts stop — the schedule refreshes when the app opens.";
+  }
+  return "Sign in and open Settings once so this device can register your reminder schedule.";
+}
+
 export function ReminderSettingsSection({
   token,
 }: ReminderSettingsSectionProps) {
+  const desktop = useDesktopShell();
+  const mobile = isMobileApp();
   const [reminders, setReminders] = useState<ScheduledReminder[]>([]);
   const [reminderPrefs, setReminderPrefs] = useState<ReminderPreferences>(
     DEFAULT_REMINDER_PREFERENCES
@@ -111,6 +124,9 @@ export function ReminderSettingsSection({
       <p className="text-text-muted text-xs leading-relaxed">
         Routine alerts fire for enabled routines in Plan. Evening check-ins list
         habits and logs you have not filled yet.
+      </p>
+      <p className="text-text-muted text-xs leading-relaxed">
+        {reminderPlatformHint(desktop, mobile)}
       </p>
 
       <label className="block space-y-2">

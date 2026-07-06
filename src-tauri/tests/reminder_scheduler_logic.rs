@@ -1,6 +1,12 @@
 use chrono::{NaiveDate, NaiveTime, Weekday};
 use slate_lib::logic::{is_reminder_due_now, next_reminder_fire, weekday_to_u8};
 use slate_lib::models::RoutineSchedule;
+use slate_lib::reminders::NOTIFICATION_PERMISSION_DENIED_MESSAGE;
+
+#[test]
+fn notification_permission_denied_message_is_actionable() {
+    assert!(NOTIFICATION_PERMISSION_DENIED_MESSAGE.contains("system settings"));
+}
 
 #[test]
 fn scheduler_waits_for_future_fire_not_immediate() {

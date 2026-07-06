@@ -13,6 +13,8 @@ use crate::models::ReminderPreferences;
 
 pub const REMINDER_WINDOW_MINUTES: i64 = 5;
 
+pub const NOTIFICATION_PERMISSION_DENIED_MESSAGE: &str = "Notification permission denied. Enable notifications for Slate in system settings, then open Settings → Notifications and tap a reminder option to refresh.";
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ReminderPayload {
     pub routine_id: String,

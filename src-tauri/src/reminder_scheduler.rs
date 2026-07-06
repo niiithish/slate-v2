@@ -1,11 +1,9 @@
 use chrono::Local;
 use tauri::{AppHandle, Runtime};
+use tauri_plugin_notification::NotificationExt;
 
 #[cfg(not(mobile))]
 use tauri::Manager;
-
-#[cfg(mobile)]
-use tauri_plugin_notification::NotificationExt;
 
 use crate::db::{DatabaseState, DbResult};
 use crate::logic::next_reminder_fire_with_offset;
@@ -14,6 +12,8 @@ use crate::reminders::{
     filtered_daily_log_reminders, resolve_daily_log_reminder, routine_notification_body,
     ReminderPayload,
 };
+
+
 
 #[cfg(not(mobile))]
 use crate::reminders::send_notification;
@@ -37,8 +37,7 @@ pub async fn sync_scheduled_reminders<R: Runtime>(
     user_id: &str,
     preferences: &ReminderPreferences,
 ) -> DbResult<Vec<ReminderPayload>> {
-    #[cfg(mobile)]
-    ensure_mobile_notifications_ready(app)?;
+    ensure_notifications_ready(app)?;
 
     let routines = db.list_routines(user_id).await?;
     let now = Local::now().naive_local();
@@ -192,32 +191,41 @@ fn stable_notification_id(key: &str) -> i32 {
     (hash & 0x7FFF_FFFF).max(1) as i32
 }
 
-#[cfg(mobile)]
-fn ensure_mobile_notifications_ready<R: Runtime>(
-    app: &AppHandle<R>,
-) -> Result<(), crate::db::DbError> {
+fn ensure_notifications_ready<R: Runtime>(app: &AppHandle<R>) -> Result<(), crate::db::DbError> {
     use tauri::plugin::PermissionState;
-    use tauri_plugin_notification::{Channel, Importance, Visibility};
 
     let notifications = app.notification();
-    if let Ok(state) = notifications.permission_state() {
-        if state != PermissionState::Granted {
-            let _ = notifications.request_permission();
-            if let Ok(PermissionState::Denied) = notifications.permission_state() {
-                tracing::warn!(
-                    "notification permission denied; mobile reminders may not be scheduled"
-                );
-            }
-        }
+    let mut state = notifications
+        .permission_state()
+        .unwrap_or(PermissionState::Prompt);
+
+    if state != PermissionState::Granted {
+        state = notifications
+            .request_permission()
+            .unwrap_or(PermissionState::Denied);
     }
 
-    let channel = Channel::builder("slate-reminders", "Slate reminders")
-        .description("Routine start alerts and evening habit check-ins")
-        .importance(Importance::High)
-        .visibility(Visibility::Public)
-        .vibration(true)
-        .build();
-    let _ = notifications.create_channel(channel);
+    if state != PermissionState::Granted {
+        tracing::warn!("notification permission not granted; reminders will not be scheduled");
+        return Err(crate::db::DbError::InvalidInput(
+            crate::reminders::NOTIFICATION_PERMISSION_DENIED_MESSAGE.into(),
+        ));
+    }
+
+    #[cfg(mobile)]
+    {
+        use tauri_plugin_notification::{Channel, Importance, Visibility};
+
+        let channel = Channel::builder("slate-reminders", "Slate reminders")
+            .description("Routine start alerts and evening habit check-ins")
+            .importance(Importance::High)
+            .visibility(Visibility::Public)
+            .vibration(true)
+            .build();
+        notifications
+            .create_channel(channel)
+            .map_err(|error| crate::db::DbError::InvalidInput(error.to_string()))?;
+    }
 
     Ok(())
 }

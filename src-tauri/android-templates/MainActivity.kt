@@ -125,7 +125,7 @@ class MainActivity : TauriActivity() {
     }
 
     val uri: Uri =
-      FileProvider.getUriForFile(this, "${applicationId}.fileprovider", apkFile)
+      FileProvider.getUriForFile(this, "${packageName}.fileprovider", apkFile)
     val intent =
       Intent(Intent.ACTION_VIEW).apply {
         setDataAndType(uri, "application/vnd.android.package-archive")

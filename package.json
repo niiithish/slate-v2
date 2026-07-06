@@ -46,6 +46,7 @@
     "icons": "bash scripts/regenerate-icons.sh",
     "build:android": "bash scripts/build-android.sh",
     "deploy:android": "bash scripts/deploy-android.sh",
+    "install:android": "bash scripts/install-android.sh",
     "build:android:fast": "bun run tauri android build",
     "export:apk": "bash scripts/export-apk.sh",
     "fix": "ultracite fix"

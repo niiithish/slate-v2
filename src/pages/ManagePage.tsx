@@ -148,7 +148,7 @@ export function ManagePage({ token }: ManagePageProps) {
   }
 
   return (
-    <div className="px-5 py-6 pb-28">
+    <div className="px-5 pt-3 pb-28">
       <header className="mb-6">
         <p className="font-medium text-text-muted text-xs uppercase tracking-[0.14em]">
           Plan

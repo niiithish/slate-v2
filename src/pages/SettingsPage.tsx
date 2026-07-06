@@ -152,7 +152,7 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
   }
 
   return (
-    <div className="space-y-6 px-5 py-6 pb-28">
+    <div className="space-y-6 px-5 pt-3 pb-28">
       <header>
         <p className="text-sm text-text-muted">Settings</p>
         <h2 className="mt-1 font-semibold text-2xl tracking-tight">Account</h2>

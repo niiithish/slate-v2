@@ -27,12 +27,12 @@ class MainActivity : TauriActivity() {
       activity.launchApkInstall(apkPath)
     }
   }
-  // WebView sometimes reports 0 status-bar inset before layout settles.
-  private fun minStatusBarInsetPx(): Int =
+  // Used only when the WebView reports 0 before layout settles — not a floor on real insets.
+  private fun fallbackStatusBarInsetPx(): Int =
     TypedValue
       .applyDimension(
         TypedValue.COMPLEX_UNIT_DIP,
-        28f,
+        24f,
         resources.displayMetrics,
       )
       .toInt()
@@ -82,8 +82,9 @@ class MainActivity : TauriActivity() {
     window.navigationBarColor = Color.parseColor("#FF010101")
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-      window.isStatusBarContrastEnforced = true
-      window.isNavigationBarContrastEnforced = true
+      // Keep the status bar our solid surface color — no automatic light scrim.
+      window.isStatusBarContrastEnforced = false
+      window.isNavigationBarContrastEnforced = false
     }
 
     val controller = WindowInsetsControllerCompat(window, window.decorView)
@@ -93,12 +94,16 @@ class MainActivity : TauriActivity() {
 
   private fun applySafeAreaInsets(webView: WebView) {
     ViewCompat.setOnApplyWindowInsetsListener(webView) { _, insets ->
-      val systemBars =
-        insets.getInsets(
-          WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
-        )
-      val top = systemBars.top.coerceAtLeast(minStatusBarInsetPx())
-      val bottom = systemBars.bottom
+      val statusBars = insets.getInsets(WindowInsetsCompat.Type.statusBars())
+      val cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
+      val reportedTop = maxOf(statusBars.top, cutout.top)
+      val top =
+        if (reportedTop > 0) {
+          reportedTop
+        } else {
+          fallbackStatusBarInsetPx()
+        }
+      val bottom = statusBars.bottom
 
       webView.setPadding(0, 0, 0, 0)
       injectSafeAreaCss(webView, top, bottom)

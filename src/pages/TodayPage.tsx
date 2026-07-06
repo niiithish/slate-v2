@@ -198,7 +198,7 @@ export function TodayPage({ token }: TodayPageProps) {
   ];
 
   return (
-    <div className="space-y-6 px-5 py-6 pb-28">
+    <div className="space-y-6 px-5 pt-3 pb-28">
       <header>
         <DayNavigator
           date={selectedDate}

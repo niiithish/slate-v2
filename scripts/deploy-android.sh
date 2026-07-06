@@ -22,10 +22,8 @@ if ((${#devices[@]} > 1)); then
   export ANDROID_SERIAL="${devices[0]}"
 fi
 
-echo "Building signed APK..."
+echo "Building signed APK (keep Wireless debugging on during this)..."
 bash "$ROOT/scripts/build-android.sh"
 
-echo "Installing on ${ANDROID_SERIAL:-${devices[0]}}..."
-adb install -r "$ROOT/slate-android.apk"
-
-echo "Done. Slate is installed on your phone."
+echo "Installing..."
+bash "$ROOT/scripts/install-android.sh"

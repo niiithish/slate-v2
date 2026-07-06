@@ -14,6 +14,7 @@ import { FormSheet, sheetInputClass } from "../components/FormSheet";
 import { ProgressRing } from "../components/ProgressRing";
 import * as api from "../lib/api";
 import { isFuture, todayString } from "../lib/dates";
+import { syncReminders } from "../lib/reminders";
 import type { DailyLog, TodayState } from "../lib/types";
 
 interface TodayPageProps {
@@ -117,6 +118,7 @@ export function TodayPage({ token }: TodayPageProps) {
     try {
       const next = await api.setHabitStatus(token, habitId, state.date, status);
       setState({ ...next, daily_log: next.daily_log ?? EMPTY_DAILY_LOG });
+      await syncReminders(token);
     } catch (err) {
       setError(String(err));
     }
@@ -147,6 +149,7 @@ export function TodayPage({ token }: TodayPageProps) {
       const next = await api.updateDailyLog(token, state.date, draft);
       setState({ ...next, daily_log: next.daily_log ?? EMPTY_DAILY_LOG });
       setActiveSheet(null);
+      await syncReminders(token);
     } catch (err) {
       setError(String(err));
     } finally {

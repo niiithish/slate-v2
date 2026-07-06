@@ -161,6 +161,14 @@ pub fn is_reminder_due_now(
 }
 
 pub fn next_reminder_fire(routine: &RoutineSchedule, now: NaiveDateTime) -> Option<NaiveDateTime> {
+    next_reminder_fire_with_offset(routine, now, 0)
+}
+
+pub fn next_reminder_fire_with_offset(
+    routine: &RoutineSchedule,
+    now: NaiveDateTime,
+    offset_minutes: i64,
+) -> Option<NaiveDateTime> {
     if !routine.reminder_enabled {
         return None;
     }
@@ -172,7 +180,8 @@ pub fn next_reminder_fire(routine: &RoutineSchedule, now: NaiveDateTime) -> Opti
         if !is_routine_active_today(&routine.days, weekday) {
             continue;
         }
-        let fire_at = NaiveDateTime::new(date, routine.start_time);
+        let start_at = NaiveDateTime::new(date, routine.start_time);
+        let fire_at = start_at - chrono::Duration::minutes(offset_minutes);
         if fire_at > now {
             return Some(fire_at);
         }
@@ -227,9 +236,19 @@ pub fn next_evening_log_reminder(now: NaiveDateTime) -> NaiveDateTime {
 }
 
 pub fn upcoming_evening_log_reminders(now: NaiveDateTime, days: i64) -> Vec<NaiveDateTime> {
+    upcoming_evening_log_reminders_at(now, days, EVENING_LOG_REMINDER_HOUR, 0)
+}
+
+pub fn upcoming_evening_log_reminders_at(
+    now: NaiveDateTime,
+    days: i64,
+    hour: u32,
+    minute: u32,
+) -> Vec<NaiveDateTime> {
     let mut fires = Vec::new();
-    let fire_time =
-        NaiveTime::from_hms_opt(EVENING_LOG_REMINDER_HOUR, 0, 0).expect("valid evening time");
+    let Some(fire_time) = NaiveTime::from_hms_opt(hour, minute, 0) else {
+        return fires;
+    };
     for offset in 0..days {
         let date = now.date() + chrono::Duration::days(offset);
         let fire_at = NaiveDateTime::new(date, fire_time);
@@ -416,6 +435,24 @@ mod tests {
                 "2026-07-02 18:00:00".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn routine_offset_fires_before_start_time() {
+        let routine = RoutineSchedule {
+            id: "r1".into(),
+            title: "Gym".into(),
+            days: vec![weekday_to_u8(Weekday::Wed)],
+            start_time: NaiveTime::from_hms_opt(6, 30, 0).unwrap(),
+            end_time: NaiveTime::from_hms_opt(7, 30, 0).unwrap(),
+            reminder_enabled: true,
+        };
+        let now = NaiveDate::from_ymd_opt(2026, 7, 1)
+            .unwrap()
+            .and_hms_opt(5, 0, 0)
+            .unwrap();
+        let next = next_reminder_fire_with_offset(&routine, now, 5).unwrap();
+        assert_eq!(next.to_string(), "2026-07-01 06:25:00");
     }
 
     #[test]

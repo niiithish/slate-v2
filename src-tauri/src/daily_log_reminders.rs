@@ -1,36 +1,87 @@
 use chrono::{Local, NaiveDateTime, Timelike};
 
-use crate::logic::{upcoming_evening_log_reminders, upcoming_water_reminders};
+use crate::logic::{upcoming_evening_log_reminders_at, upcoming_water_reminders};
+use crate::models::{HabitStatus, ReminderPreferences, TodayState};
 use crate::reminders::ReminderPayload;
 
 pub const EVENING_LOG_REMINDER_ID: &str = "daily-log:evening";
 pub const WATER_LOG_REMINDER_PREFIX: &str = "daily-log:water";
 
-pub const EVENING_LOG_TITLE: &str = "Trading & reading log";
-pub const EVENING_LOG_BODY: &str = "Log your trading results and reading for today";
+pub const EVENING_LOG_TITLE: &str = "Finish today's check-in";
+pub const EVENING_LOG_BODY: &str = "Log any habits or daily entries you have not filled yet";
 pub const WATER_LOG_TITLE: &str = "Water tracker";
 pub const WATER_LOG_BODY: &str = "Time to log how much water you've had";
 
-pub fn upcoming_daily_log_reminders(now: NaiveDateTime) -> Vec<ReminderPayload> {
+pub fn upcoming_daily_log_reminders(
+    now: NaiveDateTime,
+    preferences: &ReminderPreferences,
+) -> Vec<ReminderPayload> {
     let mut payloads = Vec::new();
 
-    for fire_at in upcoming_evening_log_reminders(now, 3) {
-        payloads.push(ReminderPayload {
-            routine_id: EVENING_LOG_REMINDER_ID.to_string(),
-            title: EVENING_LOG_TITLE.to_string(),
-            fire_at: fire_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-        });
+    if preferences.evening_reminder_enabled {
+        for fire_at in upcoming_evening_log_reminders_at(
+            now,
+            3,
+            preferences.evening_hour,
+            preferences.evening_minute,
+        ) {
+            payloads.push(ReminderPayload {
+                routine_id: EVENING_LOG_REMINDER_ID.to_string(),
+                title: EVENING_LOG_TITLE.to_string(),
+                fire_at: fire_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+            });
+        }
     }
 
-    for fire_at in upcoming_water_reminders(now, 2) {
-        payloads.push(ReminderPayload {
-            routine_id: format!("{WATER_LOG_REMINDER_PREFIX}:{}", fire_at.hour()),
-            title: WATER_LOG_TITLE.to_string(),
-            fire_at: fire_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-        });
+    if preferences.water_reminders_enabled {
+        for fire_at in upcoming_water_reminders(now, 2) {
+            payloads.push(ReminderPayload {
+                routine_id: format!("{WATER_LOG_REMINDER_PREFIX}:{}", fire_at.hour()),
+                title: WATER_LOG_TITLE.to_string(),
+                fire_at: fire_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+            });
+        }
     }
 
     payloads
+}
+
+pub fn build_evening_checkin_message(state: &TodayState) -> Option<(String, String)> {
+    if state.locked {
+        return None;
+    }
+
+    let pending_habits: Vec<&str> = state
+        .entries
+        .iter()
+        .filter(|entry| entry.status == HabitStatus::Pending)
+        .map(|entry| entry.title.as_str())
+        .collect();
+
+    let mut missing_logs = Vec::new();
+    if state.daily_log.trading_profit.is_none() {
+        missing_logs.push("Trading");
+    }
+    if state.daily_log.book_title.is_none() && state.daily_log.book_description.is_none() {
+        missing_logs.push("Reading");
+    }
+    if state.daily_log.water_ml.is_none() {
+        missing_logs.push("Water");
+    }
+
+    if pending_habits.is_empty() && missing_logs.is_empty() {
+        return None;
+    }
+
+    let mut parts = Vec::new();
+    if !pending_habits.is_empty() {
+        parts.push(format!("Habits: {}", pending_habits.join(", ")));
+    }
+    if !missing_logs.is_empty() {
+        parts.push(format!("Logs: {}", missing_logs.join(", ")));
+    }
+
+    Some((EVENING_LOG_TITLE.to_string(), parts.join(" · ")))
 }
 
 pub fn daily_log_reminder_body(reminder_id: &str) -> Option<(&'static str, &'static str)> {

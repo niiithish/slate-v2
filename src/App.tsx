@@ -3,6 +3,7 @@ import { AppShell } from "./components/AppShell";
 import { BottomNav, type TabKey } from "./components/BottomNav";
 import * as api from "./lib/api";
 import { clearSession, getStoredUser, getToken } from "./lib/auth";
+import { syncReminders } from "./lib/reminders";
 import type { Session, User } from "./lib/types";
 import { LoginPage } from "./pages/LoginPage";
 import { ManagePage } from "./pages/ManagePage";
@@ -33,14 +34,29 @@ function App() {
     if (!token) {
       return;
     }
-    api.syncReminderSchedules(token).catch(() => undefined);
-    const timer = window.setInterval(
-      () => {
-        api.syncReminderSchedules(token).catch(() => undefined);
-      },
-      60 * 60 * 1000
-    );
-    return () => window.clearInterval(timer);
+
+    const refreshReminders = () => {
+      syncReminders(token).catch((error) => {
+        if (import.meta.env.DEV) {
+          console.error("Reminder sync failed:", error);
+        }
+      });
+    };
+
+    refreshReminders();
+
+    const timer = window.setInterval(refreshReminders, 15 * 60 * 1000);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        refreshReminders();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [token]);
 
   if (!(token && user)) {

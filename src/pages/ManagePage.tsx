@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ColorSwatches } from "../components/ColorSwatches";
 import { useConfirm } from "../components/ConfirmDialog";
 import * as api from "../lib/api";
+import { syncReminders } from "../lib/reminders";
 import { DAY_LABELS, type Habit, type Routine } from "../lib/types";
 
 interface ManagePageProps {
@@ -131,6 +132,7 @@ export function ManagePage({ token }: ManagePageProps) {
       });
       resetRoutineForm();
       await refresh();
+      await syncReminders(token);
     } finally {
       setSaving(false);
     }
@@ -239,6 +241,7 @@ export function ManagePage({ token }: ManagePageProps) {
                             onConfirm: async () => {
                               await api.deleteRoutine(token, routine.id);
                               await refresh();
+                              await syncReminders(token);
                             },
                           })
                         }

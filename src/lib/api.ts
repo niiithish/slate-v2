@@ -117,16 +117,30 @@ export function getStats(token: string, weeks?: number) {
   return invoke<StatsState>("get_stats", { token, weeks });
 }
 
-export function getReminderSchedule(token: string) {
+export interface ReminderPreferencesPayload {
+  eveningHour: number;
+  eveningMinute: number;
+  eveningReminderEnabled: boolean;
+  routineOffsetMinutes: number;
+  waterRemindersEnabled: boolean;
+}
+
+export function getReminderSchedule(
+  token: string,
+  preferences?: ReminderPreferencesPayload
+) {
   return invoke<Array<{ routine_id: string; title: string; fire_at: string }>>(
     "get_reminder_schedule",
-    { token }
+    { token, preferences }
   );
 }
 
-export function syncReminderSchedules(token: string) {
+export function syncReminderSchedules(
+  token: string,
+  preferences?: ReminderPreferencesPayload
+) {
   return invoke<Array<{ routine_id: string; title: string; fire_at: string }>>(
     "sync_reminder_schedules",
-    { token }
+    { token, preferences }
   );
 }

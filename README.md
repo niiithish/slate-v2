@@ -73,22 +73,28 @@ export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
 sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0" "ndk;27.2.12479018"
 ```
 
-Build the APK (reads `.env.local` automatically):
+Build the signed release APK (reads `.env.local`, refreshes icons, applies system-bar safe-area patches, configures signing):
 
 ```bash
-bun run tauri android build
+bun run build:android
 ```
 
-Signed release APK:
+Quick unsigned rebuild when the Android project is already configured:
+
+```bash
+bun run build:android:fast
+```
+
+Release APK output:
 
 ```
-src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
+slate-android.apk
 ```
 
 Install on phone:
 
 ```bash
-adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
+adb install -r slate-android.apk
 ```
 
 Or copy the APK to your phone and open it (enable "Install unknown apps" for your file manager).

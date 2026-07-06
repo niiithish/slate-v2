@@ -1,12 +1,12 @@
 import {
   ArrowsClockwise,
-  Bell,
   DownloadSimple,
   Power,
   SignOut,
 } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { useConfirm } from "../components/ConfirmDialog";
+import { ReminderSettingsSection } from "../components/ReminderSettingsSection";
 import * as api from "../lib/api";
 import { clearSession } from "../lib/auth";
 import { getAutostartEnabled, setAutostartEnabled } from "../lib/autostart";
@@ -30,7 +30,6 @@ interface SettingsPageProps {
 export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
   const desktop = useDesktopShell();
   const [health, setHealth] = useState<string>("checking");
-  const [reminders, setReminders] = useState<string[]>([]);
   const [autostart, setAutostart] = useState(false);
   const [autostartLoading, setAutostartLoading] = useState(desktop);
   const [appVersion, setAppVersion] = useState("…");
@@ -72,13 +71,7 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
         setHealth(result.database ? "Turso connected" : "Database unavailable");
       })
       .catch(() => setHealth("Health check failed"));
-    api
-      .getReminderSchedule(token)
-      .then((items) =>
-        setReminders(items.map((item) => `${item.title} at ${item.fire_at}`))
-      )
-      .catch(() => setReminders([]));
-  }, [token]);
+  }, []);
 
   async function handleCheckUpdate() {
     setUpdateBusy(true);
@@ -282,23 +275,7 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
         </section>
       ) : null}
 
-      <section className="glass-panel rounded-2xl p-5">
-        <div className="mb-3 flex items-center gap-2 font-medium text-sm">
-          <Bell className="text-accent" size={18} />
-          Upcoming reminders
-        </div>
-        {reminders.length === 0 ? (
-          <p className="text-sm text-text-muted">No scheduled reminders yet.</p>
-        ) : (
-          <ul className="space-y-2 text-sm text-text-secondary">
-            {reminders.map((item) => (
-              <li className="rounded-xl bg-surface-2 px-3 py-2" key={item}>
-                {item}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <ReminderSettingsSection token={token} />
 
       <button
         className="focus-ring flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm text-text-primary transition hover:bg-surface-3 active:scale-[0.98]"

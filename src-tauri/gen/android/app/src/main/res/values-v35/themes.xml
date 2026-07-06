@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.slate" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Android 15 still allows opting out; padding in MainActivity is the real fix. -->
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+        <item name="android:enforceStatusBarContrast">true</item>
+        <item name="android:enforceNavigationBarContrast">true</item>
+    </style>
+</resources>

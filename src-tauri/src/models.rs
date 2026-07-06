@@ -150,6 +150,41 @@ pub struct HealthResponse {
     pub version: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReminderPreferences {
+    #[serde(default)]
+    pub routine_offset_minutes: i32,
+    #[serde(default = "default_true")]
+    pub evening_reminder_enabled: bool,
+    #[serde(default = "default_evening_hour")]
+    pub evening_hour: u32,
+    #[serde(default)]
+    pub evening_minute: u32,
+    #[serde(default = "default_true")]
+    pub water_reminders_enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_evening_hour() -> u32 {
+    22
+}
+
+impl Default for ReminderPreferences {
+    fn default() -> Self {
+        Self {
+            routine_offset_minutes: 0,
+            evening_reminder_enabled: true,
+            evening_hour: 22,
+            evening_minute: 0,
+            water_reminders_enabled: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct DayLog {
     pub date: NaiveDate,

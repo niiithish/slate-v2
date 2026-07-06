@@ -1,5 +1,7 @@
 use chrono::{NaiveDate, NaiveTime, Weekday};
-use slate_lib::logic::{is_reminder_due_now, next_reminder_fire, weekday_to_u8};
+use slate_lib::logic::{
+    is_reminder_due_now, next_reminder_fire, next_reminder_fire_with_offset, weekday_to_u8,
+};
 use slate_lib::models::RoutineSchedule;
 use slate_lib::reminders::{build_reminder_payload, REMINDER_WINDOW_MINUTES};
 
@@ -19,12 +21,15 @@ fn scheduler_enqueues_expected_timestamp() {
         .and_hms_opt(12, 0, 0)
         .unwrap();
 
-    let payload = build_reminder_payload(&routine, now).expect("payload");
+    let payload = build_reminder_payload(&routine, now, 0).expect("payload");
     assert_eq!(payload.routine_id, "routine-1");
     assert_eq!(payload.fire_at, "2026-07-02 21:00:00");
 
     let next = next_reminder_fire(&routine, now).unwrap();
     assert_eq!(next.time(), routine.start_time);
+
+    let early = next_reminder_fire_with_offset(&routine, now, 30).unwrap();
+    assert_eq!(early.to_string(), "2026-07-02 20:30:00");
 }
 
 #[test]

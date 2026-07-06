@@ -28,7 +28,7 @@
 }
 
 html {
-  --safe-top: 32px;
+  --safe-top: 0px;
   --safe-bottom: 0px;
 }
 

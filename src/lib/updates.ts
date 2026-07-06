@@ -89,9 +89,6 @@ export async function checkForUpdate(): Promise<{
       },
     };
   } catch (err) {
-    if (String(err).includes("Unsupported OS")) {
-      return checkForMobileUpdate(currentVersion);
-    }
     return {
       state: {
         phase: "error",
@@ -223,9 +220,6 @@ async function checkForMobileUpdate(
 
 function formatUpdateError(err: unknown): string {
   const raw = String(err);
-  if (raw.includes("Unsupported OS")) {
-    return "In-app updates are not available on this device yet.";
-  }
   if (raw.includes("404") || raw.toLowerCase().includes("not found")) {
     return "No release found yet. Publish a GitHub release first.";
   }

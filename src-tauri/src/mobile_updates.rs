@@ -70,6 +70,15 @@ fn is_newer_version(latest: &str, current: &str) -> bool {
     false
 }
 
+async fn head_ok(client: &reqwest::Client, url: &str) -> Option<String> {
+    let response = client.head(url).send().await.ok()?;
+    if response.status().is_success() {
+        Some(url.to_string())
+    } else {
+        None
+    }
+}
+
 fn http_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .user_agent("slate-mobile-updater")
@@ -117,13 +126,17 @@ async fn resolve_android_apk_url(
         format!("v{version}")
     };
 
-    for name in ANDROID_APK_NAMES {
-        let url = format!("https://github.com/{GITHUB_REPO}/releases/download/{tag}/{name}");
-        if let Ok(response) = client.head(&url).send().await {
-            if response.status().is_success() {
-                return Some(url);
-            }
-        }
+    let apk_urls = ANDROID_APK_NAMES
+        .iter()
+        .map(|name| format!("https://github.com/{GITHUB_REPO}/releases/download/{tag}/{name}"))
+        .collect::<Vec<_>>();
+
+    let (first, second) = tokio::join!(
+        head_ok(client, &apk_urls[0]),
+        head_ok(client, &apk_urls[1]),
+    );
+    if let Some(url) = first.or(second) {
+        return Some(url);
     }
 
     let response = client

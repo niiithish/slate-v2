@@ -177,7 +177,9 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
           </p>
           <p className="mt-2 text-text-muted text-xs">
             On Android, updates download in-app and open the system installer.
-            On desktop, updates install automatically.
+            On desktop, updates install automatically. Linux installs from the
+            repo use a bare binary updater so AppImage releases cannot break
+            your shortcut.
           </p>
 
           {updateState.message ? (

@@ -29,10 +29,10 @@ if [[ "${SKIP_BUILD:-0}" != "1" && ! -f "$BIN_SRC" ]]; then
 fi
 
 if [[ "${SKIP_BUILD:-0}" == "1" ]]; then
-  if [[ -f "$ROOT/src-tauri/target/debug/slate" ]]; then
-    BIN_SRC="$ROOT/src-tauri/target/debug/slate"
-  else
+  if [[ -f "$ROOT/src-tauri/target/release/slate" ]]; then
     BIN_SRC="$ROOT/src-tauri/target/release/slate"
+  elif [[ -f "$ROOT/src-tauri/target/debug/slate" ]]; then
+    BIN_SRC="$ROOT/src-tauri/target/debug/slate"
   fi
 fi
 

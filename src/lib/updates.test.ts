@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import {
+  type DesktopUpdateResponse,
   formatUpdateError,
   installUpdate,
   type MobileUpdateResponse,
+  mapDesktopUpdateResponse,
   mapMobileUpdateResponse,
   type PendingUpdate,
   shouldClearPendingAfterAndroidInstall,
@@ -28,6 +30,44 @@ mock.module("./platform", () => ({
   isMobileRuntime: async () => true,
   isTauriRuntime: () => true,
 }));
+
+describe("mapDesktopUpdateResponse", () => {
+  test("returns pending bare-linux update when asset is attached", () => {
+    const invokeResponse: DesktopUpdateResponse = {
+      phase: "available",
+      currentVersion: "0.1.0",
+      availableVersion: "0.2.0",
+      bareLinuxDownloadUrl:
+        "https://github.com/niiithish/slate-v2/releases/download/v0.2.0/slate-linux-x86_64",
+      bareLinuxSignature: "dGVzdA==",
+      message: "Version 0.2.0 is available.",
+      notes: "Bug fixes",
+    };
+
+    const mapped = mapDesktopUpdateResponse("0.1.0", invokeResponse);
+
+    expect(mapped.state.phase).toBe("available");
+    expect(mapped.pending?.bareLinuxDownloadUrl).toContain(
+      "slate-linux-x86_64"
+    );
+    expect(mapped.pending?.bareLinuxSignature).toBe("dGVzdA==");
+  });
+
+  test("returns no pending update when bare-linux asset is missing", () => {
+    const invokeResponse: DesktopUpdateResponse = {
+      phase: "available",
+      currentVersion: "0.1.0",
+      availableVersion: "0.2.0",
+      message:
+        "Version 0.2.0 is published, but the bare Linux binary is not attached yet.",
+    };
+
+    const mapped = mapDesktopUpdateResponse("0.1.0", invokeResponse);
+
+    expect(mapped.state.phase).toBe("available");
+    expect(mapped.pending).toBeUndefined();
+  });
+});
 
 describe("mapMobileUpdateResponse", () => {
   test("returns pending update with androidDownloadUrl from invoke response", () => {

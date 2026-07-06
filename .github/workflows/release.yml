@@ -57,6 +57,12 @@ jobs:
           tauriScript: bun run tauri
           args: ""
 
+      - name: Publish bare Linux updater binary
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: bash scripts/publish-bare-linux-update.sh
+
   publish-android:
     runs-on: ubuntu-22.04
     steps:

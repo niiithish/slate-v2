@@ -29,36 +29,29 @@
 
 html {
   --safe-top: 0px;
+  --safe-right: 0px;
   --safe-bottom: 0px;
+  --safe-left: 0px;
 }
 
 html,
 body,
 #root {
-  height: 100dvh;
   min-height: 100dvh;
 }
 
 body {
+  box-sizing: border-box;
+  min-height: 100dvh;
+  padding-top: var(--safe-top);
+  padding-right: var(--safe-right);
+  padding-left: var(--safe-left);
   margin: 0;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   color: var(--color-text-primary);
   background: var(--color-surface-0);
   text-rendering: optimizeLegibility;
-}
-
-/* Paint a solid surface behind the transparent Android status bar. */
-body::before {
-  position: fixed;
-  top: 0;
-  right: 0;
-  left: 0;
-  z-index: 30;
-  height: var(--safe-top, env(safe-area-inset-top, 0px));
-  background: var(--color-surface-0);
-  content: "";
-  pointer-events: none;
 }
 
 ::selection {

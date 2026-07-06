@@ -1,5 +1,8 @@
 use chrono::Local;
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Runtime};
+
+#[cfg(not(mobile))]
+use tauri::Manager;
 
 #[cfg(mobile)]
 use tauri_plugin_notification::NotificationExt;

@@ -3,7 +3,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
-import { isMobileRuntime, isTauriRuntime } from "./platform";
+import {
+  initRuntimePlatform,
+  isMobileRuntime,
+  isTauriRuntime,
+} from "./platform";
 
 const ERROR_PREFIX_RE = /^Error:\s*/i;
 
@@ -25,8 +29,12 @@ export interface UpdateState {
   progress?: number;
 }
 
+export type DesktopInstallKind = "bare-linux" | "bundled-linux" | "bundled";
+
 export interface PendingUpdate {
   androidDownloadUrl?: string;
+  bareLinuxDownloadUrl?: string;
+  bareLinuxSignature?: string;
   desktop?: Update;
   notes?: string;
   version: string;
@@ -35,6 +43,16 @@ export interface PendingUpdate {
 export interface MobileUpdateResponse {
   androidDownloadUrl?: string;
   availableVersion?: string;
+  currentVersion: string;
+  message: string;
+  notes?: string;
+  phase: UpdatePhase;
+}
+
+export interface DesktopUpdateResponse {
+  availableVersion?: string;
+  bareLinuxDownloadUrl?: string;
+  bareLinuxSignature?: string;
   currentVersion: string;
   message: string;
   notes?: string;
@@ -60,6 +78,10 @@ export async function checkForUpdate(): Promise<{
 
   if (await isMobileRuntime()) {
     return checkForMobileUpdate(currentVersion);
+  }
+
+  if ((await readDesktopInstallKind()) === "bare-linux") {
+    return checkForBareLinuxUpdate(currentVersion);
   }
 
   try {
@@ -104,6 +126,39 @@ export async function installUpdate(
   onProgress: (progress: number | undefined) => void
 ): Promise<UpdateState> {
   const currentVersion = await readAppVersion();
+
+  if (update.bareLinuxDownloadUrl && update.bareLinuxSignature) {
+    let unlisten: (() => void) | undefined;
+    try {
+      unlisten = await listen<number | null>(
+        "bare-linux-update-progress",
+        (event) => {
+          onProgress(event.payload ?? undefined);
+        }
+      );
+      onProgress(0);
+      await invoke("install_bare_linux_update", {
+        url: update.bareLinuxDownloadUrl,
+        signature: update.bareLinuxSignature,
+      });
+      await relaunch();
+      return {
+        phase: "installing",
+        currentVersion,
+        availableVersion: update.version,
+        message: "Restarting…",
+      };
+    } catch (err) {
+      return {
+        phase: "error",
+        currentVersion,
+        availableVersion: update.version,
+        message: formatUpdateError(err),
+      };
+    } finally {
+      unlisten?.();
+    }
+  }
 
   if (update.androidDownloadUrl) {
     let unlisten: (() => void) | undefined;
@@ -190,6 +245,52 @@ export async function installUpdate(
   }
 }
 
+export async function readDesktopInstallKind(): Promise<DesktopInstallKind | null> {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+
+  await initRuntimePlatform();
+  try {
+    return await invoke<DesktopInstallKind>("desktop_install_kind");
+  } catch {
+    return "bundled";
+  }
+}
+
+export function mapDesktopUpdateResponse(
+  fallbackCurrentVersion: string,
+  result: DesktopUpdateResponse
+): { state: UpdateState; pending?: PendingUpdate } {
+  const state: UpdateState = {
+    phase: result.phase,
+    currentVersion: result.currentVersion || fallbackCurrentVersion,
+    availableVersion: result.availableVersion,
+    notes: result.notes,
+    message: result.message,
+  };
+
+  if (result.phase !== "available" || !result.availableVersion) {
+    return { state };
+  }
+
+  const hasBareLinuxAsset = Boolean(
+    result.bareLinuxDownloadUrl && result.bareLinuxSignature
+  );
+
+  return {
+    state,
+    pending: hasBareLinuxAsset
+      ? {
+          version: result.availableVersion,
+          notes: result.notes,
+          bareLinuxDownloadUrl: result.bareLinuxDownloadUrl,
+          bareLinuxSignature: result.bareLinuxSignature,
+        }
+      : undefined,
+  };
+}
+
 export function mapMobileUpdateResponse(
   fallbackCurrentVersion: string,
   result: MobileUpdateResponse
@@ -223,6 +324,28 @@ export function shouldClearPendingAfterAndroidInstall(
   return hadAndroidDownloadUrl && result.phase !== "error";
 }
 
+async function checkForBareLinuxUpdate(
+  currentVersion: string
+): Promise<{ state: UpdateState; pending?: PendingUpdate }> {
+  try {
+    const result = await invoke<DesktopUpdateResponse>(
+      "check_bare_linux_update",
+      {
+        currentVersion,
+      }
+    );
+    return mapDesktopUpdateResponse(currentVersion, result);
+  } catch (err) {
+    return {
+      state: {
+        phase: "error",
+        currentVersion,
+        message: formatUpdateError(err),
+      },
+    };
+  }
+}
+
 async function checkForMobileUpdate(
   currentVersion: string
 ): Promise<{ state: UpdateState; pending?: PendingUpdate }> {
@@ -246,6 +369,12 @@ export function formatUpdateError(err: unknown): string {
   const raw = String(err);
   if (raw.includes("404") || raw.toLowerCase().includes("not found")) {
     return "No release found yet. Publish a GitHub release first.";
+  }
+  if (
+    raw.toLowerCase().includes("appimage") &&
+    raw.toLowerCase().includes("bare binary")
+  ) {
+    return "This install uses a bare Linux binary, but the release only published an AppImage. Reinstall from the repo with `bun run install:reuse`, or wait for the next release with a bare-binary update.";
   }
   if (
     raw.toLowerCase().includes("permission denied") ||

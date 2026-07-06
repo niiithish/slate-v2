@@ -5,6 +5,8 @@ pub mod daily_log_reminders;
 pub mod db;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod desktop;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub mod desktop_updates;
 pub mod logic;
 pub mod mobile_updates;
 pub mod models;
@@ -14,6 +16,8 @@ pub mod testing;
 
 use commands::AppState;
 use models::HealthResponse;
+
+#[cfg(not(mobile))]
 use tauri::{LogicalSize, Manager};
 
 pub fn smoke_check() -> Result<HealthResponse, String> {
@@ -36,25 +40,20 @@ pub fn run() {
             );
         }
 
-        let mut builder = tauri::Builder::default()
+        let builder = tauri::Builder::default()
             .plugin(tauri_plugin_process::init())
             .plugin(tauri_plugin_opener::init())
             .plugin(tauri_plugin_notification::init())
             .manage(state);
 
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
-        {
-            builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
-        }
-
-        #[cfg(not(any(target_os = "android", target_os = "ios")))]
-        {
-            builder = builder.plugin(
+        let builder = builder
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .plugin(
                 tauri_plugin_autostart::Builder::new()
                     .arg("--background")
                     .build(),
             );
-        }
 
         builder
             .setup(|_app| {
@@ -75,6 +74,12 @@ pub fn run() {
             })
             .invoke_handler(tauri::generate_handler![
                 commands::runtime_platform,
+                #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                desktop_updates::desktop_install_kind,
+                #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                desktop_updates::check_bare_linux_update,
+                #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                desktop_updates::install_bare_linux_update,
                 mobile_updates::check_mobile_update,
                 android_install::install_android_update,
                 commands::health_check,

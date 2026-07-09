@@ -46,9 +46,7 @@ pub async fn upcoming_reminders(
     let mut payloads = Vec::new();
 
     for routine in routines {
-        let schedule = routine
-            .into_schedule()
-            .map_err(|e| DbError::InvalidInput(e))?;
+        let schedule = routine.into_schedule().map_err(DbError::InvalidInput)?;
         if let Some(payload) = build_reminder_payload(&schedule, now, offset_minutes) {
             payloads.push(payload);
         }
@@ -95,9 +93,7 @@ pub async fn resolve_daily_log_reminder(
         }
         let date = fire_at.date().to_string();
         let state = db.get_today_state(user_id, &date).await.ok()?;
-        let Some((title, body)) = build_evening_checkin_message(&state) else {
-            return None;
-        };
+        let (title, body) = build_evening_checkin_message(&state)?;
         if mobile_evening_body {
             return Some((title, EVENING_LOG_BODY.to_string()));
         }

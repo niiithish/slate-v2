@@ -67,7 +67,7 @@ pub async fn sync_scheduled_reminders<R: Runtime>(
         }
         let schedule = routine
             .into_schedule()
-            .map_err(|e| crate::db::DbError::InvalidInput(e))?;
+            .map_err(crate::db::DbError::InvalidInput)?;
         let Some(fire_at) = next_reminder_fire_with_offset(&schedule, now, offset_minutes) else {
             continue;
         };
@@ -83,9 +83,7 @@ pub async fn sync_scheduled_reminders<R: Runtime>(
             app,
             db.clone(),
             user_id,
-            &schedule.id,
-            &schedule.title,
-            schedule.start_time,
+            schedule,
             offset_minutes,
             fire_at,
             &tasks,
@@ -272,9 +270,7 @@ async fn schedule_desktop_reminder<R: Runtime>(
     app: &AppHandle<R>,
     db: std::sync::Arc<DatabaseState>,
     user_id: &str,
-    routine_id: &str,
-    title: &str,
-    start_time: chrono::NaiveTime,
+    schedule: crate::models::RoutineSchedule,
     offset_minutes: i64,
     fire_at: chrono::NaiveDateTime,
     tasks: &SchedulerMap,
@@ -282,29 +278,39 @@ async fn schedule_desktop_reminder<R: Runtime>(
     let app_handle = app.clone();
     let db = db.clone();
     let user_id = user_id.to_string();
-    let routine_id = routine_id.to_string();
-    let title = title.to_string();
-    let key = format!("{user_id}:{routine_id}:{}", fire_at.date());
+    let key = format!("{user_id}:{}:{}", schedule.id, fire_at.date());
 
     let handle = tokio::spawn(async move {
-        wait_until(fire_at).await;
-        let date = fire_at.date().to_string();
-        let already_fired = match db
-            .reminder_already_fired(&user_id, &routine_id, &date)
-            .await
-        {
-            Ok(value) => value,
-            Err(error) => {
-                tracing::error!("reminder dedup check failed: {error}");
-                return;
+        let mut next_fire = fire_at;
+        loop {
+            wait_until(next_fire).await;
+            let date = next_fire.date().to_string();
+            let claimed = match db
+                .claim_reminder_fire(&user_id, &schedule.id, &date)
+                .await
+            {
+                Ok(value) => value,
+                Err(error) => {
+                    tracing::error!("reminder claim failed: {error}");
+                    return;
+                }
+            };
+            if claimed {
+                let body =
+                    routine_notification_body(&schedule.title, &schedule.start_time, offset_minutes);
+                if send_notification(&app_handle, "Routine reminder", &body).is_err() {
+                    let _ = db
+                        .release_reminder_fire(&user_id, &schedule.id, &date)
+                        .await;
+                }
             }
-        };
-        if already_fired {
-            return;
+
+            let now = Local::now().naive_local();
+            match next_reminder_fire_with_offset(&schedule, now, offset_minutes) {
+                Some(following) if following > next_fire => next_fire = following,
+                _ => break,
+            }
         }
-        let body = routine_notification_body(&title, &start_time, offset_minutes);
-        let _ = send_notification(&app_handle, "Routine reminder", &body);
-        let _ = db.record_reminder_fire(&user_id, &routine_id, &date).await;
     });
     tasks.lock().await.insert(key, handle);
 }
@@ -330,17 +336,14 @@ async fn schedule_desktop_daily_reminder<R: Runtime>(
     let handle = tokio::spawn(async move {
         wait_until(fire_at).await;
         let date = fire_at.date().to_string();
-        let already_fired = match db
-            .reminder_already_fired(&user_id, &reminder_id, &date)
-            .await
-        {
+        let claimed = match db.claim_reminder_fire(&user_id, &reminder_id, &date).await {
             Ok(value) => value,
             Err(error) => {
-                tracing::error!("daily log reminder dedup check failed: {error}");
+                tracing::error!("daily log reminder claim failed: {error}");
                 return;
             }
         };
-        if already_fired {
+        if !claimed {
             return;
         }
 
@@ -353,11 +356,17 @@ async fn schedule_desktop_daily_reminder<R: Runtime>(
         let Some((title, body)) =
             resolve_daily_log_reminder(&db, &user_id, &payload, now, false).await
         else {
+            let _ = db
+                .release_reminder_fire(&user_id, &reminder_id, &date)
+                .await;
             return;
         };
 
-        let _ = send_notification(&app_handle, &title, &body);
-        let _ = db.record_reminder_fire(&user_id, &reminder_id, &date).await;
+        if send_notification(&app_handle, &title, &body).is_err() {
+            let _ = db
+                .release_reminder_fire(&user_id, &reminder_id, &date)
+                .await;
+        }
     });
     tasks.lock().await.insert(key, handle);
 }

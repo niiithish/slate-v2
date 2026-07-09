@@ -140,13 +140,25 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
       message: "You'll need to sign in again to access your data.",
       confirmLabel: "Sign out",
       onConfirm: async () => {
-        clearSession();
-        onLogout();
+        try {
+          // Clear on-device schedules while the token is still valid.
+          await api.syncReminderSchedules(token, {
+            eveningHour: 22,
+            eveningMinute: 0,
+            eveningReminderEnabled: false,
+            routineOffsetMinutes: 0,
+            waterRemindersEnabled: false,
+          });
+        } catch {
+          // Best-effort; local session still clears.
+        }
         try {
           await api.logout(token);
         } catch {
           // Session cleared locally; server revoke is best-effort.
         }
+        clearSession();
+        onLogout();
       },
     });
   }
@@ -226,7 +238,9 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
                 : "Check for updates"}
             </button>
 
-            {pendingUpdate?.androidDownloadUrl || pendingUpdate?.desktop ? (
+            {pendingUpdate?.androidDownloadUrl ||
+            pendingUpdate?.desktop ||
+            pendingUpdate?.bareLinuxDownloadUrl ? (
               <button
                 className="focus-ring flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 font-semibold text-black text-sm transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
                 disabled={updateBusy}

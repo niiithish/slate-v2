@@ -35,6 +35,7 @@ fn invoke(webview: &WebviewWindow<MockRuntime>, cmd: &str, args: Value) -> Resul
 }
 
 #[tokio::test]
+#[ignore = "requires live Turso credentials; run with --ignored"]
 async fn ipc_invoke_round_trip_with_camel_case_args() {
     load_env();
     let state = AppState::try_connect().await;

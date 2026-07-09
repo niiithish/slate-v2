@@ -16,6 +16,7 @@ fn load_env() {
 }
 
 #[tokio::test]
+#[ignore = "requires live Turso credentials; run with --ignored"]
 async fn turso_round_trip_routine_habit_and_daily_log() {
     load_env();
     let db = Arc::new(DatabaseState::connect().await.expect("connect to Turso"));
@@ -69,6 +70,7 @@ async fn turso_round_trip_routine_habit_and_daily_log() {
 }
 
 #[tokio::test]
+#[ignore = "requires live Turso credentials; run with --ignored"]
 async fn turso_round_trip_daily_log_fields() {
     load_env();
     let db = std::sync::Arc::new(DatabaseState::connect().await.expect("connect to Turso"));

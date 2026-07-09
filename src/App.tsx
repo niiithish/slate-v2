@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { AppShell } from "./components/AppShell";
 import { BottomNav, type TabKey } from "./components/BottomNav";
 import * as api from "./lib/api";
-import { clearSession, getStoredUser, getToken } from "./lib/auth";
+import { clearSession, getStoredUser, getToken, saveSession } from "./lib/auth";
+import { isAuthError } from "./lib/errors";
 import { invalidateSyncedData, queryClient } from "./lib/queryClient";
 import { syncReminders } from "./lib/reminders";
 import type { Session, User } from "./lib/types";
@@ -16,21 +17,54 @@ function App() {
   const [tab, setTab] = useState<TabKey>("today");
   const [token, setToken] = useState<string | null>(getToken());
   const [user, setUser] = useState<User | null>(getStoredUser());
+  const [sessionChecking, setSessionChecking] = useState(
+    () => Boolean(getToken()) && !getStoredUser()
+  );
 
   useEffect(() => {
     if (!token) {
       queryClient.clear();
+      setSessionChecking(false);
       return;
     }
+
+    let cancelled = false;
+    const requestedToken = token;
+
     api
-      .getMe(token)
-      .then(setUser)
-      .catch(() => {
-        clearSession();
-        queryClient.clear();
-        setToken(null);
-        setUser(null);
+      .getMe(requestedToken)
+      .then((nextUser) => {
+        if (cancelled || getToken() !== requestedToken) {
+          return;
+        }
+        setUser(nextUser);
+        saveSession({ token: requestedToken, user: nextUser });
+      })
+      .catch((error) => {
+        if (cancelled || getToken() !== requestedToken) {
+          return;
+        }
+        if (isAuthError(error)) {
+          clearSession();
+          queryClient.clear();
+          setToken(null);
+          setUser(null);
+          return;
+        }
+        // Keep local session on transient/network failures.
+        if (import.meta.env.DEV) {
+          console.error("Session restore failed:", error);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSessionChecking(false);
+        }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   useEffect(() => {
@@ -62,6 +96,16 @@ function App() {
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [token]);
+
+  if (sessionChecking) {
+    return (
+      <AppShell>
+        <div className="flex flex-1 items-center justify-center px-5 py-16 text-sm text-text-muted">
+          Restoring session…
+        </div>
+      </AppShell>
+    );
+  }
 
   if (!(token && user)) {
     return (

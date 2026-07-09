@@ -3,7 +3,7 @@ import * as api from "./api";
 import { queryKeys } from "./queryClient";
 import type { DailyLog, TodayState } from "./types";
 
-const EMPTY_DAILY_LOG: DailyLog = {
+export const EMPTY_DAILY_LOG: DailyLog = {
   trading_profit: null,
   book_title: null,
   book_description: null,

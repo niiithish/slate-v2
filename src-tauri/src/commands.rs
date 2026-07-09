@@ -151,6 +151,7 @@ pub async fn login_cmd(
     with_db_cmd!(state, clone(email, password) |db| login_user(&db, &email, &password).await)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn create_routine_cmd(
     state: &AppState,
     token: String,
@@ -292,6 +293,7 @@ pub async fn list_routines(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn create_routine(
     state: State<'_, AppState>,
     token: String,
@@ -442,7 +444,7 @@ pub async fn get_reminder_schedule(
     token: String,
     preferences: Option<ReminderPreferences>,
 ) -> Result<Vec<crate::reminders::ReminderPayload>, String> {
-    let preferences = preferences.unwrap_or_default();
+    let preferences = preferences.unwrap_or_default().sanitized();
     with_db_cmd!(state.inner(), clone(token, preferences) |db| {
         let user = resolve_user(&db, &token).await?;
         upcoming_reminders(&db, &user.id, &preferences).await
@@ -456,7 +458,7 @@ pub async fn sync_reminder_schedules(
     token: String,
     preferences: Option<ReminderPreferences>,
 ) -> Result<Vec<crate::reminders::ReminderPayload>, String> {
-    let preferences = preferences.unwrap_or_default();
+    let preferences = preferences.unwrap_or_default().sanitized();
     with_db_cmd!(state.inner(), clone(app, token, preferences) |db| {
         let user = resolve_user(&db, &token).await?;
         sync_scheduled_reminders(&app, db, &user.id, &preferences).await

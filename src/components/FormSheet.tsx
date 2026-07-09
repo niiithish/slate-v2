@@ -1,6 +1,6 @@
 import { CircleNotch, X } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { createPortal } from "react-dom";
 
 interface FormSheetProps {
@@ -22,6 +22,8 @@ export function FormSheet({
   saveLabel = "Save",
   children,
 }: FormSheetProps) {
+  const titleId = useId();
+
   useEffect(() => {
     if (!open) {
       return;
@@ -52,7 +54,7 @@ export function FormSheet({
         >
           <motion.div
             animate={{ opacity: 1, y: 0 }}
-            aria-labelledby="form-sheet-title"
+            aria-labelledby={titleId}
             aria-modal="true"
             className="w-full max-w-sm rounded-2xl border border-border bg-surface-1 p-4 shadow-2xl"
             exit={{ opacity: 0, y: 24 }}
@@ -64,7 +66,7 @@ export function FormSheet({
             <div className="mb-4 flex items-center justify-between gap-3">
               <h3
                 className="font-semibold text-base text-text-primary"
-                id="form-sheet-title"
+                id={titleId}
               >
                 {title}
               </h3>

@@ -15,7 +15,12 @@ import { FormSheet, sheetInputClass } from "../components/FormSheet";
 import { ProgressRing } from "../components/ProgressRing";
 import * as api from "../lib/api";
 import { isFuture, todayString } from "../lib/dates";
-import { normalizeTodayState, useTodayState } from "../lib/queries";
+import { formatInvokeError } from "../lib/errors";
+import {
+  EMPTY_DAILY_LOG,
+  normalizeTodayState,
+  useTodayState,
+} from "../lib/queries";
 import { invalidateAfterTodayChange, queryKeys } from "../lib/queryClient";
 import { syncReminders } from "../lib/reminders";
 import type { DailyLog } from "../lib/types";
@@ -25,13 +30,6 @@ interface TodayPageProps {
 }
 
 type LogSheet = "trading" | "reading" | "water" | null;
-
-const EMPTY_DAILY_LOG: DailyLog = {
-  trading_profit: null,
-  book_title: null,
-  book_description: null,
-  water_ml: null,
-};
 
 function formatTrading(value: number | null): string {
   if (value === null) {
@@ -58,16 +56,20 @@ function formatWater(value: number | null): string {
   return `${value.toLocaleString()} ml`;
 }
 
-function formatQueryError(err: unknown): string {
-  const message = String(err);
-  if (
-    message.includes("connection abort") ||
-    message.includes("connection error") ||
-    message.includes("os error 103")
-  ) {
-    return "Connection lost. Pull to refresh or try again in a moment.";
+function parseOptionalFloat(raw: string): number | null {
+  if (raw === "") {
+    return null;
   }
-  return message;
+  const value = Number.parseFloat(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
+function parseOptionalInt(raw: string): number | null {
+  if (raw === "") {
+    return null;
+  }
+  const value = Number.parseInt(raw, 10);
+  return Number.isFinite(value) ? value : null;
 }
 
 export function TodayPage({ token }: TodayPageProps) {
@@ -90,10 +92,11 @@ export function TodayPage({ token }: TodayPageProps) {
   }
 
   function updateTodayCache(
+    date: string,
     next: Awaited<ReturnType<typeof api.getTodayState>>
   ) {
     queryClient.setQueryData(
-      queryKeys.today(token, selectedDate),
+      queryKeys.today(token, date),
       normalizeTodayState(next)
     );
   }
@@ -102,14 +105,15 @@ export function TodayPage({ token }: TodayPageProps) {
     if (!state || state.locked || isFuture(selectedDate)) {
       return;
     }
+    const date = state.date;
     setActionError(null);
     try {
-      const next = await api.setHabitStatus(token, habitId, state.date, status);
-      updateTodayCache(next);
-      await invalidateAfterTodayChange(token, selectedDate);
+      const next = await api.setHabitStatus(token, habitId, date, status);
+      updateTodayCache(date, next);
+      await invalidateAfterTodayChange(token, date);
       await syncReminders(token);
     } catch (err) {
-      setActionError(formatQueryError(err));
+      setActionError(formatInvokeError(err));
     }
   }
 
@@ -132,16 +136,17 @@ export function TodayPage({ token }: TodayPageProps) {
     if (!state || savingLog) {
       return;
     }
+    const date = state.date;
     setSavingLog(true);
     setActionError(null);
     try {
-      const next = await api.updateDailyLog(token, state.date, draft);
-      updateTodayCache(next);
+      const next = await api.updateDailyLog(token, date, draft);
+      updateTodayCache(date, next);
       setActiveSheet(null);
-      await invalidateAfterTodayChange(token, selectedDate);
+      await invalidateAfterTodayChange(token, date);
       await syncReminders(token);
     } catch (err) {
-      setActionError(formatQueryError(err));
+      setActionError(formatInvokeError(err));
     } finally {
       setSavingLog(false);
     }
@@ -150,7 +155,7 @@ export function TodayPage({ token }: TodayPageProps) {
   const viewingFuture = isFuture(selectedDate);
   const readOnly = viewingFuture || Boolean(state?.locked);
   const error =
-    actionError ?? (queryError ? formatQueryError(queryError) : null);
+    actionError ?? (queryError ? formatInvokeError(queryError) : null);
   const loading = isLoading || (isFetching && !state);
 
   if (isLoading && !state) {
@@ -409,7 +414,7 @@ export function TodayPage({ token }: TodayPageProps) {
               const raw = event.target.value;
               setDraft((current) => ({
                 ...current,
-                trading_profit: raw === "" ? null : Number.parseFloat(raw),
+                trading_profit: parseOptionalFloat(raw),
               }));
             }}
             placeholder="0.00"
@@ -483,7 +488,7 @@ export function TodayPage({ token }: TodayPageProps) {
               const raw = event.target.value;
               setDraft((current) => ({
                 ...current,
-                water_ml: raw === "" ? null : Number.parseInt(raw, 10),
+                water_ml: parseOptionalInt(raw),
               }));
             }}
             placeholder="2500"

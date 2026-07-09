@@ -245,31 +245,7 @@ fn verify_signature(data: &[u8], release_signature: &str, pub_key: &str) -> Resu
     Ok(())
 }
 
-pub(crate) fn normalize_version(version: &str) -> String {
-    version.trim_start_matches('v').to_string()
-}
-
-pub(crate) fn is_newer_version(latest: &str, current: &str) -> bool {
-    let latest_parts = normalize_version(latest)
-        .split('.')
-        .map(|part| part.parse::<u32>().unwrap_or(0))
-        .collect::<Vec<_>>();
-    let current_parts = normalize_version(current)
-        .split('.')
-        .map(|part| part.parse::<u32>().unwrap_or(0))
-        .collect::<Vec<_>>();
-    let length = latest_parts.len().max(current_parts.len());
-
-    for index in 0..length {
-        let next = latest_parts.get(index).copied().unwrap_or(0);
-        let prev = current_parts.get(index).copied().unwrap_or(0);
-        if next != prev {
-            return next > prev;
-        }
-    }
-
-    false
-}
+pub(crate) use crate::version::{is_newer_version, normalize_version};
 
 #[cfg(test)]
 mod tests {
@@ -301,18 +277,17 @@ mod tests {
     #[tokio::test]
     async fn reports_missing_bare_linux_asset() {
         let server = MockServer::start().await;
-        let manifest = format!(
-            r#"{{
+        let manifest = r#"{
   "version": "0.2.0",
   "notes": "Bug fixes",
-  "platforms": {{
-    "linux-x86_64": {{
+  "platforms": {
+    "linux-x86_64": {
       "url": "https://example.com/appimage",
       "signature": "abc"
-    }}
-  }}
-}}"#
-        );
+    }
+  }
+}"#
+        .to_string();
 
         Mock::given(method("GET"))
             .and(path("/latest.json"))

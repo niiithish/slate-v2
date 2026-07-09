@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, Utc};
 use libsql::{Builder, Connection, Database};
 use rand::RngCore;
 use thiserror::Error;
@@ -168,11 +168,19 @@ impl DatabaseState {
         let conn = self.connection()?;
         let id = Uuid::new_v4().to_string();
         let created_at = Utc::now().to_rfc3339();
-        conn.execute(
-            "INSERT INTO users (id, email, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, ?)",
-            (id.as_str(), email, password_hash, display_name, created_at.as_str()),
-        )
-        .await?;
+        if let Err(error) = conn
+            .execute(
+                "INSERT INTO users (id, email, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, ?)",
+                (id.as_str(), email, password_hash, display_name, created_at.as_str()),
+            )
+            .await
+        {
+            let message = error.to_string().to_lowercase();
+            if message.contains("unique") || message.contains("constraint") {
+                return Err(DbError::InvalidInput("email already registered".into()));
+            }
+            return Err(DbError::Database(error));
+        }
         Ok(User {
             id,
             email: email.to_string(),
@@ -241,6 +249,9 @@ impl DatabaseState {
         let expires = chrono::DateTime::parse_from_rfc3339(&expires_at)
             .map_err(|_| DbError::InvalidInput("invalid session expiry".into()))?;
         if expires < Utc::now() {
+            let _ = conn
+                .execute("DELETE FROM sessions WHERE token = ?", [token])
+                .await;
             return Err(DbError::Unauthorized);
         }
         Ok(User {
@@ -282,6 +293,7 @@ impl DatabaseState {
         Ok(routines)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_routine(
         &self,
         user_id: &str,
@@ -292,9 +304,12 @@ impl DatabaseState {
         color: &str,
         reminder_enabled: bool,
     ) -> DbResult<Routine> {
+        Routine::validate_fields(title, days, start_time, end_time)
+            .map_err(DbError::InvalidInput)?;
         let conn = self.connection()?;
         let id = Uuid::new_v4().to_string();
-        let days_json = serde_json::to_string(days).unwrap_or_else(|_| "[]".into());
+        let days_json = serde_json::to_string(days)
+            .map_err(|error| DbError::InvalidInput(error.to_string()))?;
         let created_at = Utc::now().to_rfc3339();
         conn.execute(
             "INSERT INTO routines (id, user_id, title, days, start_time, end_time, color, reminder_enabled, created_at)
@@ -324,8 +339,16 @@ impl DatabaseState {
     }
 
     pub async fn update_routine(&self, user_id: &str, routine: &Routine) -> DbResult<Routine> {
+        Routine::validate_fields(
+            &routine.title,
+            &routine.days,
+            &routine.start_time,
+            &routine.end_time,
+        )
+        .map_err(DbError::InvalidInput)?;
         let conn = self.connection()?;
-        let days_json = serde_json::to_string(&routine.days).unwrap_or_else(|_| "[]".into());
+        let days_json = serde_json::to_string(&routine.days)
+            .map_err(|error| DbError::InvalidInput(error.to_string()))?;
         let updated = conn
             .execute(
                 "UPDATE routines SET title = ?, days = ?, start_time = ?, end_time = ?, color = ?, reminder_enabled = ?
@@ -421,6 +444,11 @@ impl DatabaseState {
 
     pub async fn delete_habit(&self, user_id: &str, habit_id: &str) -> DbResult<()> {
         let conn = self.connection()?;
+        conn.execute(
+            "DELETE FROM daily_entries WHERE habit_id = ? AND user_id = ?",
+            (habit_id, user_id),
+        )
+        .await?;
         let deleted = conn
             .execute(
                 "DELETE FROM habits WHERE id = ? AND user_id = ?",
@@ -430,11 +458,6 @@ impl DatabaseState {
         if deleted == 0 {
             return Err(DbError::NotFound);
         }
-        conn.execute(
-            "DELETE FROM daily_entries WHERE habit_id = ? AND user_id = ?",
-            (habit_id, user_id),
-        )
-        .await?;
         Ok(())
     }
 
@@ -461,7 +484,7 @@ impl DatabaseState {
                 )
                 .await?;
             let status = if let Some(row) = rows.next().await? {
-                HabitStatus::from_str(&row.get::<String>(0)?)
+                HabitStatus::parse(&row.get::<String>(0)?)
             } else {
                 HabitStatus::Pending
             };
@@ -474,8 +497,13 @@ impl DatabaseState {
         }
 
         let logs = self.fetch_logs(user_id, 120).await?;
-        let habit_ids: Vec<String> = active_habits.iter().map(|h| h.id.clone()).collect();
-        let current_streak = calculate_current_streak(&logs, &habit_ids, date_naive);
+        let habit_records = self.fetch_habit_records(user_id).await?;
+        let streak_habits: Vec<(String, NaiveDate)> = habit_records
+            .iter()
+            .filter(|habit| habit.active)
+            .map(|habit| (habit.id.clone(), habit.created_at.date_naive()))
+            .collect();
+        let current_streak = calculate_current_streak(&logs, &streak_habits, date_naive);
 
         let daily_log = self.get_daily_log(user_id, date).await?;
 
@@ -526,7 +554,7 @@ impl DatabaseState {
 
         let date_naive = NaiveDate::parse_from_str(date, "%Y-%m-%d")
             .map_err(|_| DbError::InvalidInput("invalid date".into()))?;
-        let today = Utc::now().date_naive();
+        let today = Local::now().date_naive();
         let locked = self.is_day_locked(user_id, date).await?;
         if !can_edit_day(locked, date_naive, today) {
             if locked {
@@ -570,7 +598,7 @@ impl DatabaseState {
     ) -> DbResult<TodayState> {
         let date_naive = NaiveDate::parse_from_str(date, "%Y-%m-%d")
             .map_err(|_| DbError::InvalidInput("invalid date".into()))?;
-        let today = Utc::now().date_naive();
+        let today = Local::now().date_naive();
         let locked = self.is_day_locked(user_id, date).await?;
         if !can_edit_day(locked, date_naive, today) {
             if locked {
@@ -579,6 +607,15 @@ impl DatabaseState {
             return Err(DbError::InvalidInput("cannot edit future days".into()));
         }
         let conn = self.connection()?;
+        let mut owned = conn
+            .query(
+                "SELECT 1 FROM habits WHERE id = ? AND user_id = ? AND active = 1",
+                (habit_id, user_id),
+            )
+            .await?;
+        if owned.next().await?.is_none() {
+            return Err(DbError::NotFound);
+        }
         let id = Uuid::new_v4().to_string();
         conn.execute(
             "INSERT INTO daily_entries (id, user_id, habit_id, date, status)
@@ -593,7 +630,7 @@ impl DatabaseState {
     pub async fn lock_day(&self, user_id: &str, date: &str) -> DbResult<TodayState> {
         let date_naive = NaiveDate::parse_from_str(date, "%Y-%m-%d")
             .map_err(|_| DbError::InvalidInput("invalid date".into()))?;
-        let today = Utc::now().date_naive();
+        let today = Local::now().date_naive();
         let locked = self.is_day_locked(user_id, date).await?;
         if !can_edit_day(locked, date_naive, today) {
             if locked {
@@ -638,7 +675,7 @@ impl DatabaseState {
 
     async fn fetch_logs(&self, user_id: &str, days: i64) -> DbResult<Vec<DayLog>> {
         let conn = self.connection()?;
-        let start = (Utc::now().date_naive() - Duration::days(days)).to_string();
+        let start = (Local::now().date_naive() - Duration::days(days)).to_string();
         let mut rows = conn
             .query(
                 "SELECT date, habit_id, status FROM daily_entries
@@ -654,7 +691,7 @@ impl DatabaseState {
             logs.push(DayLog {
                 date,
                 habit_id: row.get(1)?,
-                status: HabitStatus::from_str(&row.get::<String>(2)?),
+                status: HabitStatus::parse(&row.get::<String>(2)?),
             });
         }
         Ok(logs)
@@ -684,10 +721,12 @@ impl DatabaseState {
         Ok(habits)
     }
 
-    fn habits_active_on_date(records: &[HabitRecord], date: NaiveDate) -> Vec<&HabitRecord> {
+    /// Habits that existed on `date` (by `created_at`), including currently inactive ones.
+    /// Historical stats should not rewrite the past when a habit is deactivated.
+    fn habits_existing_on_date(records: &[HabitRecord], date: NaiveDate) -> Vec<&HabitRecord> {
         records
             .iter()
-            .filter(|habit| habit.active && habit.created_at.date_naive() <= date)
+            .filter(|habit| habit.created_at.date_naive() <= date)
             .collect()
     }
 
@@ -707,20 +746,47 @@ impl DatabaseState {
         Ok(rows.next().await?.is_some())
     }
 
-    pub async fn record_reminder_fire(
+    /// Atomically claim a reminder fire slot. Returns `true` if this caller owns the fire.
+    pub async fn claim_reminder_fire(
+        &self,
+        user_id: &str,
+        routine_id: &str,
+        date: &str,
+    ) -> DbResult<bool> {
+        let conn = self.connection()?;
+        let fired_at = Utc::now().to_rfc3339();
+        let inserted = conn
+            .execute(
+                "INSERT INTO reminder_fires (user_id, routine_id, date, fired_at) VALUES (?, ?, ?, ?)
+                 ON CONFLICT(user_id, routine_id, date) DO NOTHING",
+                (user_id, routine_id, date, fired_at.as_str()),
+            )
+            .await?;
+        Ok(inserted > 0)
+    }
+
+    pub async fn release_reminder_fire(
         &self,
         user_id: &str,
         routine_id: &str,
         date: &str,
     ) -> DbResult<()> {
         let conn = self.connection()?;
-        let fired_at = Utc::now().to_rfc3339();
         conn.execute(
-            "INSERT INTO reminder_fires (user_id, routine_id, date, fired_at) VALUES (?, ?, ?, ?)
-             ON CONFLICT(user_id, routine_id, date) DO NOTHING",
-            (user_id, routine_id, date, fired_at.as_str()),
+            "DELETE FROM reminder_fires WHERE user_id = ? AND routine_id = ? AND date = ?",
+            (user_id, routine_id, date),
         )
         .await?;
+        Ok(())
+    }
+
+    pub async fn record_reminder_fire(
+        &self,
+        user_id: &str,
+        routine_id: &str,
+        date: &str,
+    ) -> DbResult<()> {
+        let _ = self.claim_reminder_fire(user_id, routine_id, date).await?;
         Ok(())
     }
 
@@ -728,31 +794,31 @@ impl DatabaseState {
         let days = (weeks.max(1) * 7) as i64;
         let logs = self.fetch_logs(user_id, days).await?;
         let habit_records = self.fetch_habit_records(user_id).await?;
-        let today = Utc::now().date_naive();
+        let today = Local::now().date_naive();
 
         let mut heatmap = Vec::new();
         for offset in 0..days {
             let date = today - Duration::days(days - 1 - offset);
             let date_str = date.to_string();
             let day_logs: Vec<_> = logs.iter().filter(|l| l.date == date).collect();
-            let active_on_day = Self::habits_active_on_date(&habit_records, date);
-            let active_ids: std::collections::HashSet<_> = active_on_day
+            let existing_on_day = Self::habits_existing_on_date(&habit_records, date);
+            let existing_ids: std::collections::HashSet<_> = existing_on_day
                 .iter()
                 .map(|habit| habit.id.as_str())
                 .collect();
             let avoided = day_logs
                 .iter()
                 .filter(|l| {
-                    l.status == HabitStatus::Avoided && active_ids.contains(l.habit_id.as_str())
+                    l.status == HabitStatus::Avoided && existing_ids.contains(l.habit_id.as_str())
                 })
                 .count() as u32;
             let slipped = day_logs
                 .iter()
                 .filter(|l| {
-                    l.status == HabitStatus::Slipped && active_ids.contains(l.habit_id.as_str())
+                    l.status == HabitStatus::Slipped && existing_ids.contains(l.habit_id.as_str())
                 })
                 .count() as u32;
-            let total = active_on_day.len() as u32;
+            let total = existing_on_day.len() as u32;
             heatmap.push(HeatmapCell {
                 date: date_str,
                 avoided,
@@ -782,7 +848,7 @@ impl DatabaseState {
             .iter()
             .filter(|log| {
                 log.status == HabitStatus::Avoided
-                    && Self::habits_active_on_date(&habit_records, log.date)
+                    && Self::habits_existing_on_date(&habit_records, log.date)
                         .iter()
                         .any(|habit| habit.id == log.habit_id)
             })
@@ -791,7 +857,7 @@ impl DatabaseState {
             .iter()
             .filter(|log| {
                 log.status == HabitStatus::Slipped
-                    && Self::habits_active_on_date(&habit_records, log.date)
+                    && Self::habits_existing_on_date(&habit_records, log.date)
                         .iter()
                         .any(|habit| habit.id == log.habit_id)
             })

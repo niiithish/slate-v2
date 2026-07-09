@@ -13,6 +13,7 @@ pub mod models;
 mod reminder_scheduler;
 pub mod reminders;
 pub mod testing;
+mod version;
 
 use commands::AppState;
 use models::HealthResponse;

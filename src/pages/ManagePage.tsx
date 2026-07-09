@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ColorSwatches } from "../components/ColorSwatches";
 import { useConfirm } from "../components/ConfirmDialog";
 import * as api from "../lib/api";
+import { formatInvokeError } from "../lib/errors";
 import { useHabits, useRoutines } from "../lib/queries";
 import { invalidateAfterPlanChange } from "../lib/queryClient";
 import { syncReminders } from "../lib/reminders";
@@ -54,6 +55,7 @@ export function ManagePage({ token }: ManagePageProps) {
   const [startTime, setStartTime] = useState("08:00");
   const [endTime, setEndTime] = useState("09:00");
   const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const { confirm, dialog: confirmDialog } = useConfirm();
 
   async function refreshPlanData() {
@@ -116,6 +118,7 @@ export function ManagePage({ token }: ManagePageProps) {
       return;
     }
     setSaving(true);
+    setActionError(null);
     try {
       await api.createRoutine(token, {
         title: routineTitle.trim(),
@@ -128,6 +131,8 @@ export function ManagePage({ token }: ManagePageProps) {
       resetRoutineForm();
       await refreshPlanData();
       await syncReminders(token);
+    } catch (error) {
+      setActionError(formatInvokeError(error));
     } finally {
       setSaving(false);
     }
@@ -138,10 +143,13 @@ export function ManagePage({ token }: ManagePageProps) {
       return;
     }
     setSaving(true);
+    setActionError(null);
     try {
       await api.createHabit(token, habitTitle.trim(), habitColor);
       resetHabitForm();
       await refreshPlanData();
+    } catch (error) {
+      setActionError(formatInvokeError(error));
     } finally {
       setSaving(false);
     }
@@ -157,6 +165,12 @@ export function ManagePage({ token }: ManagePageProps) {
           Your schedule
         </h2>
       </header>
+
+      {actionError ? (
+        <p className="mb-4 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-danger text-sm">
+          {actionError}
+        </p>
+      ) : null}
 
       <div className="mb-6 flex rounded-lg border border-border bg-surface-1 p-1">
         {(
@@ -238,9 +252,14 @@ export function ManagePage({ token }: ManagePageProps) {
                             confirmLabel: "Delete",
                             variant: "danger",
                             onConfirm: async () => {
-                              await api.deleteRoutine(token, routine.id);
-                              await refreshPlanData();
-                              await syncReminders(token);
+                              try {
+                                await api.deleteRoutine(token, routine.id);
+                                await refreshPlanData();
+                                await syncReminders(token);
+                              } catch (error) {
+                                setActionError(formatInvokeError(error));
+                                throw error;
+                              }
                             },
                           })
                         }
@@ -409,8 +428,13 @@ export function ManagePage({ token }: ManagePageProps) {
                           confirmLabel: "Delete",
                           variant: "danger",
                           onConfirm: async () => {
-                            await api.deleteHabit(token, habit.id);
-                            await refreshPlanData();
+                            try {
+                              await api.deleteHabit(token, habit.id);
+                              await refreshPlanData();
+                            } catch (error) {
+                              setActionError(formatInvokeError(error));
+                              throw error;
+                            }
                           },
                         })
                       }

@@ -43,13 +43,29 @@ pub fn day_fully_avoided(logs: &[DayLog], date: NaiveDate, habit_ids: &[String])
     })
 }
 
-pub fn calculate_current_streak(logs: &[DayLog], habit_ids: &[String], today: NaiveDate) -> u32 {
-    if habit_ids.is_empty() {
+/// Overall streak across habits. Each entry is `(habit_id, created_on)`.
+/// Habits are only required for days on or after their creation date, so adding
+/// a new habit does not zero out historical streak days.
+pub fn calculate_current_streak(
+    logs: &[DayLog],
+    habits: &[(String, NaiveDate)],
+    today: NaiveDate,
+) -> u32 {
+    if habits.is_empty() {
         return 0;
     }
 
+    let habit_ids_for_day = |day: NaiveDate| -> Vec<String> {
+        habits
+            .iter()
+            .filter(|(_, created_on)| *created_on <= day)
+            .map(|(id, _)| id.clone())
+            .collect()
+    };
+
     let mut day = today;
-    if !day_fully_avoided(logs, day, habit_ids) {
+    let today_ids = habit_ids_for_day(day);
+    if today_ids.is_empty() || !day_fully_avoided(logs, day, &today_ids) {
         day = match day.pred_opt() {
             Some(previous) => previous,
             None => return 0,
@@ -57,7 +73,11 @@ pub fn calculate_current_streak(logs: &[DayLog], habit_ids: &[String], today: Na
     }
 
     let mut count = 0u32;
-    while day_fully_avoided(logs, day, habit_ids) {
+    loop {
+        let ids = habit_ids_for_day(day);
+        if ids.is_empty() || !day_fully_avoided(logs, day, &ids) {
+            break;
+        }
         count += 1;
         day = match day.pred_opt() {
             Some(previous) => previous,
@@ -199,14 +219,14 @@ pub fn validate_daily_log_fields(
     water_ml: &Option<u32>,
 ) -> Result<(), String> {
     if let Some(title) = book_title {
-        if title.len() > MAX_BOOK_TITLE_LEN {
+        if title.chars().count() > MAX_BOOK_TITLE_LEN {
             return Err(format!(
                 "book title must be at most {MAX_BOOK_TITLE_LEN} characters"
             ));
         }
     }
     if let Some(description) = book_description {
-        if description.len() > MAX_BOOK_DESCRIPTION_LEN {
+        if description.chars().count() > MAX_BOOK_DESCRIPTION_LEN {
             return Err(format!(
                 "book description must be at most {MAX_BOOK_DESCRIPTION_LEN} characters"
             ));
@@ -346,9 +366,28 @@ mod tests {
             log("2026-07-02", "h2", HabitStatus::Slipped),
             log("2026-07-03", "h2", HabitStatus::Avoided),
         ];
-        let habits = vec!["h1".to_string(), "h2".to_string()];
+        let habits = vec![
+            ("h1".to_string(), date("2026-01-01")),
+            ("h2".to_string(), date("2026-01-01")),
+        ];
         let streak = calculate_current_streak(&logs, &habits, date("2026-07-03"));
         assert_eq!(streak, 1);
+    }
+
+    #[test]
+    fn streak_ignores_habits_not_yet_created() {
+        let logs = vec![
+            log("2026-07-01", "h1", HabitStatus::Avoided),
+            log("2026-07-02", "h1", HabitStatus::Avoided),
+            log("2026-07-03", "h1", HabitStatus::Avoided),
+            log("2026-07-03", "h2", HabitStatus::Avoided),
+        ];
+        let habits = vec![
+            ("h1".to_string(), date("2026-01-01")),
+            ("h2".to_string(), date("2026-07-03")),
+        ];
+        let streak = calculate_current_streak(&logs, &habits, date("2026-07-03"));
+        assert_eq!(streak, 3);
     }
 
     #[test]

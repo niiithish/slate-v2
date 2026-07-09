@@ -103,6 +103,9 @@ pub async fn install_android_update(app: AppHandle, url: String) -> Result<(), S
     if trimmed.is_empty() {
         return Err("Missing APK download URL.".into());
     }
+    if !crate::mobile_updates::is_usable_apk_url(trimmed) {
+        return Err("APK URL is not allowed.".into());
+    }
 
     let cache_dir = app
         .path()

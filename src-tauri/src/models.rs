@@ -19,7 +19,7 @@ impl HabitStatus {
         }
     }
 
-    pub fn from_str(value: &str) -> Self {
+    pub fn parse(value: &str) -> Self {
         match value {
             "avoided" => HabitStatus::Avoided,
             "slipped" => HabitStatus::Slipped,
@@ -65,7 +65,30 @@ pub struct Routine {
 }
 
 impl Routine {
+    pub fn validate_fields(
+        title: &str,
+        days: &[u8],
+        start_time: &str,
+        end_time: &str,
+    ) -> Result<(), String> {
+        if title.trim().is_empty() {
+            return Err("routine title is required".into());
+        }
+        if days.is_empty() {
+            return Err("select at least one day".into());
+        }
+        if days.iter().any(|day| *day > 6) {
+            return Err("routine days must be between 0 (Mon) and 6 (Sun)".into());
+        }
+        let _start = NaiveTime::parse_from_str(start_time, "%H:%M")
+            .map_err(|_| "invalid routine start time".to_string())?;
+        let _end = NaiveTime::parse_from_str(end_time, "%H:%M")
+            .map_err(|_| "invalid routine end time".to_string())?;
+        Ok(())
+    }
+
     pub fn into_schedule(self) -> Result<RoutineSchedule, String> {
+        Self::validate_fields(&self.title, &self.days, &self.start_time, &self.end_time)?;
         let start = NaiveTime::parse_from_str(&self.start_time, "%H:%M")
             .map_err(|_| "invalid routine start time".to_string())?;
         let end = NaiveTime::parse_from_str(&self.end_time, "%H:%M")
@@ -181,6 +204,19 @@ impl Default for ReminderPreferences {
             evening_hour: 22,
             evening_minute: 0,
             water_reminders_enabled: true,
+        }
+    }
+}
+
+impl ReminderPreferences {
+    /// Clamp preference fields into ranges the scheduler can use.
+    pub fn sanitized(self) -> Self {
+        Self {
+            routine_offset_minutes: self.routine_offset_minutes.clamp(0, 180),
+            evening_reminder_enabled: self.evening_reminder_enabled,
+            evening_hour: self.evening_hour.min(23),
+            evening_minute: self.evening_minute.min(59),
+            water_reminders_enabled: self.water_reminders_enabled,
         }
     }
 }

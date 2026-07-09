@@ -61,31 +61,7 @@ pub struct MobileUpdateResponse {
     pub phase: String,
 }
 
-pub(crate) fn normalize_version(version: &str) -> String {
-    version.trim_start_matches('v').to_string()
-}
-
-pub(crate) fn is_newer_version(latest: &str, current: &str) -> bool {
-    let latest_parts = normalize_version(latest)
-        .split('.')
-        .map(|part| part.parse::<u32>().unwrap_or(0))
-        .collect::<Vec<_>>();
-    let current_parts = normalize_version(current)
-        .split('.')
-        .map(|part| part.parse::<u32>().unwrap_or(0))
-        .collect::<Vec<_>>();
-    let length = latest_parts.len().max(current_parts.len());
-
-    for index in 0..length {
-        let next = latest_parts.get(index).copied().unwrap_or(0);
-        let prev = current_parts.get(index).copied().unwrap_or(0);
-        if next != prev {
-            return next > prev;
-        }
-    }
-
-    false
-}
+pub(crate) use crate::version::{is_newer_version, normalize_version};
 
 /// APK URLs must be openable in a browser/download manager — not GitHub API asset endpoints.
 pub(crate) fn is_usable_apk_url(url: &str) -> bool {
@@ -575,6 +551,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "hits live GitHub; run with --ignored when online"]
     async fn live_github_resolve_returns_slate_android_apk_for_published_release() {
         let endpoints = UpdateEndpoints::default();
         let client = http_client().expect("client");
